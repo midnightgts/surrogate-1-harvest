@@ -271,7 +271,7 @@ def tool_glob(pattern, path=None):
 
 def tool_grep(pattern, path=None, glob='*'):
     base = os.path.expanduser(path) if path else CWD
-    cmd = f"grep -rn --include='{glob}' -E {subprocess.list2cmdline([pattern])} {base} 2>/dev/null | head -40"
+    cmd = f"/usr/bin/grep -rn --include='{glob}' -E {subprocess.list2cmdline([pattern])} {base} 2>/dev/null | head -40"
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
     return {'matches': r.stdout[:5000]}
 
@@ -474,6 +474,9 @@ ${B}Diagnostics${R}:
   ${CY}/cost-all${R}              all provider usage breakdown
   ${CY}/health${R}               check HF endpoint + local CLI status
   ${CY}/monitor${R}               watch logs + system load (background)
+  ${CY}/history${R}                last 20 prompts you ran
+  ${CY}/context${R}                show full session context (cwd, mode, git, etc.)
+  ${CY}/undo${R}                   restore last surrogate checkpoint (git stash/reset)
 
 ${B}Hermes brain${R} (axentx/surrogate-1):
   ${CY}/remote${R} <task>        force route via HF Space (override local)
@@ -486,6 +489,42 @@ ${B}Tips${R}:
 EOF
 }
 
+# ═══ Status line — show every prompt (cost, mode, model, project) ═══
+print_statusline() {
+    local cost_str=""
+    if [[ -n "${OR_KEY:-${OPENROUTER_API_KEY:-}}" ]]; then
+        # Cached cost lookup — fetch once per minute
+        local cache=~/.surrogate/.cost-cache
+        if [[ ! -f "$cache" ]] || [[ $(($(date +%s) - $(stat -f %m "$cache" 2>/dev/null || stat -c %Y "$cache" 2>/dev/null || echo 0))) -gt 60 ]]; then
+            (curl -sS -m 5 -H "Authorization: Bearer ${OPENROUTER_API_KEY:-${OR_KEY:-}}" \
+                https://openrouter.ai/api/v1/auth/key 2>/dev/null \
+                | python3 -c "import json,sys; d=json.load(sys.stdin).get('data',{}); print(f'\$OR={d.get(\"usage\",0):.3f}')" \
+                > "$cache") 2>/dev/null &
+        fi
+        cost_str=$(cat "$cache" 2>/dev/null | head -1)
+    fi
+    local proj_short=""
+    [[ -n "$SURROGATE_MD" ]] && proj_short="📁 $(basename "$(dirname "$SURROGATE_MD")") "
+    local model_short="${MODEL:-auto}"
+    local hf_brain="${USE_HF_HERMES:-1}"
+    local hf_str="🌐 HF" ; [[ "$hf_brain" == "0" ]] && hf_str="💻 local"
+    echo "${D}─── ${proj_short}${YE}${PERM_MODE}${R}${D} · ${MA}${model_short}${R}${D} · ${hf_str}${R}${D} · ${cost_str:-\$?} ───${R}"
+}
+
+# ═══ History persistence ═══
+HISTORY_FILE="$SURROGATE_HOME/history.jsonl"
+mkdir -p "$(dirname "$HISTORY_FILE")"
+save_history() {
+    local prompt="$1"
+    python3 -c "
+import json, sys, time
+from pathlib import Path
+Path('$HISTORY_FILE').parent.mkdir(parents=True, exist_ok=True)
+with open('$HISTORY_FILE', 'a') as f:
+    f.write(json.dumps({'ts': time.time(), 'cwd': '$(pwd)', 'prompt': '''$prompt'''[:500]}, ensure_ascii=False) + '\n')
+" 2>/dev/null
+}
+
 # ═══ REPL ═══
 repl() {
     banner
@@ -493,6 +532,7 @@ repl() {
     echo "${D}Type ${CY}/help${R}${D} for commands · ${CY}/exit${R}${D} to quit · plain text = task to Surrogate-1${R}"
     echo ""
     while true; do
+        print_statusline
         # Show project + mode in prompt (Claude-Code style)
         local prompt_proj="${SURROGATE_MD:+$(basename $(dirname "$SURROGATE_MD"))}"
         local prompt_str="${B}${BMA}▶${R}"
@@ -501,6 +541,9 @@ repl() {
         if ! IFS= read -r line; then echo ""; break; fi
         line="${line#"${line%%[![:space:]]*}"}"   # ltrim
         [[ -z "$line" ]] && continue
+
+        # Persist to history (skip for /exit and /clear)
+        case "$line" in /exit|/quit|exit|quit|/clear) ;; *) save_history "$line" ;; esac
 
         case "$line" in
             /exit|/quit|exit|quit) break ;;
@@ -556,6 +599,60 @@ repl() {
                 esac
                 ;;
             /memory) ls -lh ~/.claude/state/surrogate-memory/ 2>&1 | head -10 ;;
+            /undo)
+                # Restore last checkpoint (git stash if uncommitted changes from last task)
+                if git -C "$(pwd)" rev-parse --git-dir &>/dev/null; then
+                    LAST_STASH=$(git -C "$(pwd)" stash list 2>/dev/null | grep "surrogate-checkpoint" | head -1)
+                    if [[ -n "$LAST_STASH" ]]; then
+                        STASH_REF=$(echo "$LAST_STASH" | cut -d: -f1)
+                        echo "${YE}▸ Restoring: $LAST_STASH${R}"
+                        git -C "$(pwd)" stash pop "$STASH_REF" 2>&1 | head -10
+                    else
+                        # Try undoing last commit (if surrogate-auto)
+                        LAST_COMMIT=$(git -C "$(pwd)" log -1 --format='%s' 2>/dev/null)
+                        if echo "$LAST_COMMIT" | grep -qiE "surrogate|auto-dev|hermes"; then
+                            echo "${YE}▸ Undoing last commit: $LAST_COMMIT${R}"
+                            git -C "$(pwd)" reset --soft HEAD~1 2>&1 | tail -3
+                        else
+                            echo "${GY}  no surrogate checkpoint to undo (last commit: $LAST_COMMIT)${R}"
+                        fi
+                    fi
+                else
+                    echo "${RE}  not a git repo — /undo requires git${R}"
+                fi
+                ;;
+            /history)
+                if [[ -f "$HISTORY_FILE" ]]; then
+                    python3 -c "
+import json
+from pathlib import Path
+import time
+lines = Path('$HISTORY_FILE').read_text().splitlines()[-20:]
+for l in lines:
+    try:
+        d = json.loads(l)
+        age_min = int((time.time() - d.get('ts', 0)) / 60)
+        print(f\"  [{age_min:>4}m ago] {d.get('prompt','')[:100]}\")
+    except: pass
+"
+                else
+                    echo "${GY}  no history yet${R}"
+                fi
+                ;;
+            /context)
+                echo "${B}Active context${R}"
+                echo "  cwd:        $(pwd)"
+                echo "  project:    ${SURROGATE_MD:-(none)}"
+                echo "  mode:       ${PERM_MODE}"
+                echo "  model:      ${MODEL:-auto}"
+                echo "  effort:     ${EFFORT}"
+                echo "  HF brain:   ${USE_HF_HERMES:-1} (1=route via HF Space, 0=local-only)"
+                echo "  history:    $(wc -l < "$HISTORY_FILE" 2>/dev/null || echo 0) commands"
+                if [[ -d ".git" ]]; then
+                    echo "  git branch: $(git branch --show-current 2>/dev/null)"
+                    echo "  git status: $(git status --short 2>/dev/null | wc -l | tr -d ' ') changed files"
+                fi
+                ;;
             /cost)
                 bash -c 'source ~/.hermes/.env; curl -s -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/auth/key' 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin).get('data',{}); print(f'  OpenRouter: \${d.get(\"usage\",0):.4f}')"
                 ;;
@@ -842,7 +939,7 @@ monitor_mode() {
         # If critical → spawn agent to investigate
         if [[ $ERR_COUNT -gt 50 ]]; then
             echo "${RE}⚠ elevated errors — dispatching investigator agent${R}"
-            (run_agent "เช็ค ~/.claude/logs/ หา pattern error ที่ recur บ่อย และเสนอ fix list (ห้ามแก้เอง รายงานอย่างเดียว)" 2>&1 | head -20) &
+            (run_agent "เช็ค ~/.claude/logs/ หา pattern error ที่ recur บ่อย และเสนอ fix list (ห้ามแก้เอง รายงานอย่างเดียว)" 2>&1 | /usr/bin/head -20) &
         fi
         sleep 30
     done
