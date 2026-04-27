@@ -144,32 +144,35 @@ if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
     echo "[$(date +%H:%M:%S)] discord bot started"
 fi
 
-# ── 7a. Continuous scrape daemon (no idle gaps — runs back-to-back batches) ─
+# ── 7a. Continuous scrape daemon (parallel 8 workers, ~10s cool-down) ──────
 cat > /tmp/scrape-daemon.sh <<'SCRAPESH'
 #!/bin/bash
-# Runs scrape batches continuously. Cool-down between cycles only to respect rate limits.
+# 8 concurrent scrape workers, near-zero idle time.
 set -a; source ~/.hermes/.env 2>/dev/null; set +a
 LOG="${HOME}/.claude/logs/scrape-continuous.log"
 mkdir -p "$(dirname "$LOG")"
 while true; do
     START=$(date +%s)
-    # Adaptive cool-down: short if last batch was small, long if hit rate limits
-    bash ~/.claude/bin/domain-scrape-loop.sh 800 4 >> "$LOG" 2>&1
+    bash ~/.claude/bin/domain-scrape-loop.sh 1500 8 >> "$LOG" 2>&1
     DUR=$(( $(date +%s) - START ))
-    # If batch took < 60s the queue was empty / rate-limited → cool down 90s
-    # If batch took > 5min it was productive → only 30s cool-down
-    if [[ $DUR -lt 60 ]]; then
-        sleep 90
-    elif [[ $DUR -lt 300 ]]; then
-        sleep 60
-    else
-        sleep 30
+    # Tight cool-downs — cloud has unlimited bandwidth, only rate-limit concern
+    if [[ $DUR -lt 30 ]]; then sleep 30          # queue likely exhausted, give it time
+    elif [[ $DUR -lt 120 ]]; then sleep 15
+    else sleep 5
     fi
 done
 SCRAPESH
 chmod +x /tmp/scrape-daemon.sh
 nohup /tmp/scrape-daemon.sh > "$LOG_DIR/scrape-daemon.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] continuous scrape daemon started" >> "$LOG_DIR/boot.log"
+echo "[$(date +%H:%M:%S)] continuous scrape daemon (parallel=8) started" >> "$LOG_DIR/boot.log"
+
+# ── 7b. Agentic crawler (URL frontier + visited stamps + link discovery) ────
+nohup bash ~/.claude/bin/agentic-crawler.sh 6 > "$LOG_DIR/agentic-crawler.log" 2>&1 &
+echo "[$(date +%H:%M:%S)] agentic crawler started (parallel=6)" >> "$LOG_DIR/boot.log"
+
+# ── 7c. Skill-synthesis daemon (extract patterns from cloned repos → skills) ─
+nohup bash ~/.claude/bin/skill-synthesis-daemon.sh > "$LOG_DIR/skill-synthesis.log" 2>&1 &
+echo "[$(date +%H:%M:%S)] skill-synthesis daemon started" >> "$LOG_DIR/boot.log"
 
 # ── 7b. Cron loop — non-scrape daemons (scrape now runs continuously above) ─
 cat > /tmp/hermes-cron.sh <<'CRONSH'
@@ -183,8 +186,8 @@ while true; do
     [[ $((M % 2)) -eq 0 ]] && bash ~/.claude/bin/surrogate-dev-loop.sh 1 >> "$LOG" 2>&1 &
     # Every 5 min: producer pushes priorities to Redis
     [[ $((M % 5)) -eq 0 ]] && bash ~/.claude/bin/work-queue-producer.sh >> "$LOG" 2>&1 &
-    # Every 10 min: training-pair push to HF (drains ~/.surrogate/training-pairs.jsonl)
-    [[ $((M % 10)) -eq 0 ]] && bash ~/.claude/bin/push-training-to-hf.sh >> "$LOG" 2>&1 &
+    # Every 3 min: training-pair push to HF (drains ~/.surrogate/training-pairs.jsonl)
+    [[ $((M % 3)) -eq 0 ]] && bash ~/.claude/bin/push-training-to-hf.sh >> "$LOG" 2>&1 &
     # Every 20 min: full orchestrate chain (architect → dev → qa → reviewer + git push)
     [[ $((M % 20)) -eq 0 ]] && bash ~/.claude/bin/auto-orchestrate-loop.sh >> "$LOG" 2>&1 &
     # Every 30 min: research-apply (pop queue → orchestrate → ship feature)

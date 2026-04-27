@@ -278,7 +278,7 @@ PYEOF
     fi
 }
 
-# ── Stage 1: SOLUTION ARCHITECT ──
+# ── Stage 1: SOLUTION ARCHITECT (must run first — blocks everything) ──
 SA_OUT="$WORKDIR/1-sa-design.md"
 echo "${MA}${B}═══ Stage 1/6: SOLUTION ARCHITECT${R} ${D}— DDD + design patterns${R}"
 call_agent "solution-architect" "
@@ -293,16 +293,19 @@ Cover (each as a heading):
 6. **Non-functional impacts** — perf, security, scale, observability
 7. **Risks + mitigations**
 
-Be concrete. Use the codebase if useful (read/grep tools available). No platitudes.
+Be concrete. No platitudes.
 
 Task: $TASK
 " "$SA_OUT"
 
-# ── Stage 2: ARCHITECT ──
+# ── Stages 2 + 3 in PARALLEL — both depend only on SA, independent of each other ──
 ARCH_OUT="$WORKDIR/2-architect-plan.md"
+TDD_OUT="$WORKDIR/3-qa-tdd-tests.md"
 echo ""
-echo "${MA}${B}═══ Stage 2/6: ARCHITECT${R} ${D}— file-level plan${R}"
-call_agent "architect" "
+echo "${MA}${B}═══ Stages 2+3 (parallel): ARCHITECT │ QA-TDD${R}"
+
+(
+    call_agent "architect" "
 You are the Tech Architect. Take the SA design (at $SA_OUT) and produce a CONCRETE file-level execution plan.
 
 Required headings:
@@ -313,31 +316,20 @@ Required headings:
 5. **Migration plan** — schema/config rollouts
 6. **Rollback** — how to undo on prod failure
 
-Read 3–5 similar files first (read/grep) to follow existing patterns.
-
 Task: $TASK
 " "$ARCH_OUT"
+) &
+PID_ARCH=$!
 
-if [[ "$MODE" == "plan" ]]; then
-    echo ""
-    echo "${B}▸ Plan-only mode — stopping after architect${R}"
-    [[ -f "$ARCH_OUT" ]] && cat "$ARCH_OUT"
-    exit 0
-fi
-
-# ── Stage 3: QA-FIRST (TDD tests) ──
-TDD_OUT="$WORKDIR/3-qa-tdd-tests.md"
-echo ""
-echo "${MA}${B}═══ Stage 3/6: QA-FIRST (TDD)${R} ${D}— failing tests first${R}"
-call_agent "qa" "
+(
+    call_agent "qa" "
 You are the QA Engineer practicing TDD. Output FAILING test code BEFORE the dev writes any implementation.
 
 Inputs:
-- SA design: $SA_OUT
-- Architect plan: $ARCH_OUT
+- SA design: $SA_OUT (read it for design context)
 
 Required output:
-1. List of test file paths (use the architect's listed paths)
+1. List of test file paths
 2. Full test code for each file as fenced code blocks (\`\`\`python / \`\`\`typescript / etc.)
 3. Each test: one assertion, factory functions for fixtures, descriptive name
 4. Cover: happy path, edge cases, error paths, security boundaries
@@ -347,6 +339,18 @@ NO implementation code — only tests.
 
 Task: $TASK
 " "$TDD_OUT"
+) &
+PID_QA=$!
+
+wait $PID_ARCH $PID_QA
+echo "${D}  parallel stages 2+3 complete${R}"
+
+if [[ "$MODE" == "plan" ]]; then
+    echo ""
+    echo "${B}▸ Plan-only mode — stopping after architect${R}"
+    [[ -f "$ARCH_OUT" ]] && cat "$ARCH_OUT"
+    exit 0
+fi
 
 # ── Stage 4: DEV ──
 DEV_OUT="$WORKDIR/4-dev-summary.md"
@@ -412,11 +416,23 @@ print(f"  total {written} files written")
 PYEOF
 fi
 
-# ── Stage 5: QA-VERIFY ──
+# ── Stages 5 + 6a in PARALLEL — both depend on dev, independent of each other ──
 QA_OUT="$WORKDIR/5-qa-verify.md"
+OPS_OUT="$WORKDIR/6a-ops-checklist.md"
+NEED_OPS=0
+if echo "$TASK" | /usr/bin/grep -iqE "deploy|docker|helm|k8s|terraform|cicd|ci/cd|cloudformation|buildspec|ecs|lambda"; then
+    NEED_OPS=1
+fi
+
 echo ""
-echo "${MA}${B}═══ Stage 5/6: QA-VERIFY${R} ${D}— green tests + coverage${R}"
-call_agent "qa" "
+if [[ $NEED_OPS -eq 1 ]]; then
+    echo "${MA}${B}═══ Stages 5+6a (parallel): QA-VERIFY │ OPS${R}"
+else
+    echo "${MA}${B}═══ Stage 5/6: QA-VERIFY${R}"
+fi
+
+(
+    call_agent "qa" "
 You are QA in verification phase. Verify the dev's claim that tests pass.
 
 Inputs:
@@ -431,13 +447,12 @@ Output:
 
 Task: $TASK
 " "$QA_OUT"
+) &
+PID_QA2=$!
 
-# ── Stage 6a: OPS (conditional) ──
-if echo "$TASK" | /usr/bin/grep -iqE "deploy|docker|helm|k8s|terraform|cicd|ci/cd|cloudformation|buildspec|ecs|lambda"; then
-    OPS_OUT="$WORKDIR/6a-ops-checklist.md"
-    echo ""
-    echo "${MA}${B}═══ Stage 6a/6: OPS${R} ${D}— deploy + infra${R}"
-    call_agent "ops" "
+if [[ $NEED_OPS -eq 1 ]]; then
+    (
+        call_agent "ops" "
 Review infrastructure aspects of this task.
 - Dockerfile / helm / terraform / cloudformation validity
 - Secrets / env var handling
@@ -448,10 +463,14 @@ Review infrastructure aspects of this task.
 Inputs: $DEV_OUT
 Task: $TASK
 " "$OPS_OUT"
+    ) &
+    PID_OPS=$!
+    wait $PID_QA2 $PID_OPS
 else
-    echo ""
+    wait $PID_QA2
     echo "${GY}═══ Stage 6a/6: OPS — skipped (not infra task)${R}"
 fi
+echo "${D}  parallel stages 5+6a complete${R}"
 
 # ── Stage 6: REVIEWER ──
 REVIEW_OUT="$WORKDIR/6-review-verdict.md"
