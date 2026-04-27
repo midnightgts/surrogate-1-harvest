@@ -60,10 +60,11 @@ if [[ -n "$GH_TOKEN" ]]; then
     ln -sfn "$PROJECTS_DIR" ~/axentx
 
     # Clone axentx repos (skip if already exists)
+    # Note: axiomops dropped (using arkship instead). arkship lives under arkashira org.
     for repo_spec in \
         "Costinel:AXENTX/Costinel" \
         "Vanguard:AXENTX/vanguard" \
-        "axiomops:AXENTX/axiomops" \
+        "arkship:arkashira/arkship" \
         "surrogate-1:AXENTX/surrogate-1"; do
         local_name="${repo_spec%%:*}"
         gh_path="${repo_spec##*:}"
