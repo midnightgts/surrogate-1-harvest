@@ -120,7 +120,14 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         .) shift ;;
-        *) PROMPT="$*"; MODE="print"; break ;;
+        *)
+            PROMPT="$*"
+            # Preserve mode if already set by an earlier flag (--auto, --plan, --monitor, etc.)
+            if [[ "$MODE" == "interactive" ]] || [[ "$MODE" == "print" ]]; then
+                MODE="print"
+            fi
+            break
+            ;;
     esac
 done
 
