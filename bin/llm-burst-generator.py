@@ -301,8 +301,10 @@ def main():
                 log(f"  diag {name}: {err}")
             _first_err_per_provider.clear()
 
-        # Sleep 60-120s between cycles (random jitter to avoid sync bursts)
-        time.sleep(60 + random.randint(0, 60))
+        # Pedal-down mode: 30-60s between cycles (was 60-120s).
+        # With Cerebras 1M tok/day budget plus Groq + OpenRouter,
+        # this still stays well within free quotas.
+        time.sleep(30 + random.randint(0, 30))
 
 
 if __name__ == "__main__":
