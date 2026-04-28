@@ -391,7 +391,12 @@ print(f"  {len(existing_hashes):,} existing hashes loaded", flush=True)
 # SHARDING: when multiple bulk-ingest workers run in parallel, each handles
 # only its slug-hash bucket. SHARD_TOTAL=4 → each worker pulls 1/4 of DATASETS.
 new_pairs_total = 0
-out_path = WORK / f"merged-public-dedup-{time.strftime('%Y%m%d')}-shard{SHARD_ID}.jsonl"
+# Per-iteration unique filename — prevents overwrites between iterations of
+# the same shard AND between different shards. Without this, every iter and
+# every shard wrote to the same path (date+shard only), losing 16 x N runs/hr
+# of work to the last writer.
+_iter_ts = time.strftime('%H%M%S')
+out_path = WORK / f"merged-public-dedup-{time.strftime('%Y%m%d')}-shard{SHARD_ID}-{_iter_ts}.jsonl"
 
 with open(out_path, "w") as out:
     for ds_id, license_, slug, schema, cap in DATASETS:
@@ -762,18 +767,33 @@ except Exception as e:
 print(f"\n=== Total new pairs after dedup: {new_pairs_total:,} ===", flush=True)
 print(f"Output: {out_path} ({out_path.stat().st_size/1024/1024:.1f} MB)", flush=True)
 
-# 4. Push to axentx/surrogate-1-training-pairs
+# 4. Push to axentx/surrogate-1-training-pairs.
+# Each upload lives at a unique path: batches/public-merged/<date>/shard<N>-<HHMMSS>.jsonl
+# so every iteration of every shard is preserved (16 shards x 30 iter/hr was
+# previously collapsing to ONE surviving file per day due to filename collision).
 if new_pairs_total > 0:
-    repo_path = f"public-merged-dedup-{time.strftime('%Y-%m-%d')}.jsonl"
+    repo_path = f"batches/public-merged/{time.strftime('%Y-%m-%d')}/shard{SHARD_ID}-{_iter_ts}.jsonl"
     print(f"\nUploading {repo_path} to axentx/surrogate-1-training-pairs...", flush=True)
-    api.upload_file(
-        path_or_fileobj=str(out_path),
-        path_in_repo=repo_path,
-        repo_id="axentx/surrogate-1-training-pairs",
-        repo_type="dataset",
-        commit_message=f"Public datasets dedup-merged: {new_pairs_total} new pairs across coding/dialog/commits/reasoning/iac"
-    )
-    print(f"✅ uploaded → axentx/surrogate-1-training-pairs/{repo_path}", flush=True)
+    try:
+        api.upload_file(
+            path_or_fileobj=str(out_path),
+            path_in_repo=repo_path,
+            repo_id="axentx/surrogate-1-training-pairs",
+            repo_type="dataset",
+            commit_message=f"shard{SHARD_ID}@{_iter_ts}: +{new_pairs_total} pairs (coding/dialog/commits/reasoning/iac)"
+        )
+        print(f"✅ uploaded → {repo_path}", flush=True)
+        # Free local disk — file is now safe on HF
+        try:
+            out_path.unlink()
+        except Exception:
+            pass
+    except Exception as _e:
+        print(f"⚠ upload failed ({_e}); local file kept at {out_path}", flush=True)
+elif out_path.exists() and out_path.stat().st_size == 0:
+    # Empty iteration — drop the empty file to keep /data clean
+    try: out_path.unlink()
+    except: pass
 PYEOF
 
 echo "[$(date +%H:%M:%S)] dataset enrich done" | tee -a "$LOG"
