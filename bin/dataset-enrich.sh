@@ -162,7 +162,29 @@ DATASETS = [
     ("OpenAssistant/oasst1",                        "Apache",      "oasst1",              "messages",             100000),
     # UltraTextbooks (5.5M Apache long-form learning)
     ("Locutusque/UltraTextbooks",                   "Apache",      "ultratextbooks",      "instr-resp",           500000),
-    # NOTE: SWE-bench/SWE-bench_Verified + bigcode/bigcodebench RESERVED AS EVAL ONLY.
+    # ════════════════════════════════════════════════════════════════════════
+    # ROUND 4 — fill remaining gaps (long-context, unit-test gen, more agents)
+    # ════════════════════════════════════════════════════════════════════════
+    # NVIDIA Nemotron mega-mix (7.2M, recent Aug 2025, 5 langs)
+    ("nvidia/Nemotron-Post-Training-Dataset-v2",    "CC-BY-4.0",   "nemotron-post-v2",    "messages",             500000),
+    # NVIDIA Llama-Nemotron R1 + tool-use (30M)
+    ("nvidia/Llama-Nemotron-Post-Training-Dataset", "CC-BY-4.0",   "llama-nemotron-post", "messages",             100000),
+    # Long-context Python repo completions (FILLS BIGGEST GAP — 128k tokens)
+    ("tianyang/repobench_python_v1.1",              "CC-BY-4.0",   "repobench-py",        "repobench-longctx",     23561),
+    # Unit-test generation with FAR/FRR scores (NEW NICHE)
+    ("KAKA22/CodeRM-UnitTest",                      "Apache",      "coderm-unit-test",    "code-unit-test-gen",    77192),
+    # SmolAgents code-agent execution traces from DeepSeek-V3
+    ("smolagents/codeagent-traces",                 "Apache",      "smolagent-traces",    "agent-trace-msg",       98730),
+    # StarCoder2 self-aligned + execution-validated
+    ("bigcode/self-oss-instruct-sc2-exec-filter-50k","ODC-BY",     "sc2-self-oss",        "instr-resp",            50661),
+    # SWE-Gym training set (separate from held-out SWE-bench evals)
+    ("SWE-Gym/SWE-Gym",                             "MIT",         "swe-gym",             "swe-instance",           2438),
+    # Multilingual code translation
+    ("nuprl/MultiPL-E",                             "BSD-3",       "multipl-e",           "code-translation-pl",   10000),
+    # Common Pile Stack Exchange permissive subset (programming + ServerFault + DBA)
+    ("common-pile/stackexchange",                   "CC-BY-SA",    "common-pile-se",      "messages",             200000),
+    # NOTE: SWE-bench/SWE-bench_Verified + SWE-bench/SWE-bench_Multilingual +
+    # ByteDance-Seed/Multi-SWE-bench + bigcode/bigcodebench = EVAL HOLDOUT, never train.
 ]
 
 # 1. Use CENTRAL dedup store (single source of truth across all writers)
@@ -427,6 +449,34 @@ with open(out_path, "w") as out:
                     prompt = f"Explain this educational {lang} code example:\n```{lang}\n{code}\n```"
                     response = "[stack-edu sample — pending LLM-generated explanation]"
                     continue  # placeholder — skip
+                elif schema == "repobench-longctx":       # tianyang/repobench (long-context completion)
+                    ctx = str(row.get("context") or row.get("cropped_code",""))[:50000]
+                    next_line = str(row.get("next_line") or row.get("groundtruth",""))[:2000]
+                    if not ctx or not next_line: continue
+                    prompt = f"Complete the next line of code given this context:\n```python\n{ctx}\n```"
+                    response = next_line
+                elif schema == "code-unit-test-gen":      # CodeRM-UnitTest
+                    func = str(row.get("function") or row.get("code") or row.get("solution",""))[:6000]
+                    test = str(row.get("test") or row.get("unit_test","") or row.get("tests",""))[:6000]
+                    if not func or not test: continue
+                    prompt = f"Generate unit tests for this function:\n```\n{func}\n```"
+                    response = test
+                elif schema == "agent-trace-msg":         # smolagents codeagent-traces
+                    msgs = row.get("messages") or row.get("trace") or []
+                    if not isinstance(msgs, list) or len(msgs) < 2: continue
+                    prompt = str(msgs[0].get("content","") or msgs[0].get("value",""))[:6000]
+                    response = "\n\n".join(
+                        str(m.get("content","") or m.get("value",""))
+                        for m in msgs[1:][:8]
+                    )[:12000]
+                elif schema == "code-translation-pl":     # MultiPL-E (programming language → language)
+                    src_lang = str(row.get("source_language", "python"))
+                    tgt_lang = str(row.get("target_language") or row.get("language", "?"))
+                    src_code = str(row.get("source") or row.get("prompt",""))[:4000]
+                    tgt_code = str(row.get("target") or row.get("solution") or row.get("canonical_solution",""))[:6000]
+                    if not src_code or not tgt_code: continue
+                    prompt = f"Translate this {src_lang} code to {tgt_lang}:\n```{src_lang}\n{src_code}\n```"
+                    response = f"```{tgt_lang}\n{tgt_code}\n```"
                 else:
                     continue
 
