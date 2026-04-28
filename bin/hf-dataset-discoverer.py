@@ -32,51 +32,38 @@ ALLOWED = {
 DENY_KEYWORDS = ("noncommercial", "non-commercial", "nc-", "-nc", "nc4.0",
                  "llama2", "llama3", "llama-3", "research-only", "personal-use")
 
-# 70+ search queries — broad SDLC + niche coverage
-QUERIES = [
-    # Code generation/instruction
-    "code instruction", "code completion", "code generation", "python instruction",
-    "code review", "code refactoring", "code translation", "code explanation",
-    # Bug-fix / test
-    "bug fix", "test generation", "unit test", "pull request", "diff review",
-    "vulnerability fix", "security patch",
-    # Reasoning / CoT
-    "chain of thought", "math reasoning", "step by step", "reasoning trace",
-    "deepseek r1", "qwq", "o1 reasoning",
-    # Agent / tool
-    "agent trajectory", "tool calling", "function calling", "react agent",
-    "swe-bench", "agentic", "smolagents",
-    # DevSecOps / IR
-    "incident response", "postmortem", "cybersecurity", "vulnerability",
-    "cve", "exploit", "owasp", "threat intelligence", "security audit",
-    "penetration testing", "red team",
-    # SRE / Cloud
-    "system reliability", "sre", "observability", "kubernetes", "terraform",
-    "cloudformation", "aws", "gcp", "azure", "devops",
-    # Data / ML
-    "dbt", "airflow", "spark", "kafka", "etl", "mlops", "model serving",
-    "embedding dataset", "rag dataset",
-    # SQL / DBA
-    "text-to-sql", "sql query", "database query", "schema",
-    # Architecture
-    "software architecture", "design pattern", "domain driven design",
-    "microservices", "event sourcing", "cqrs", "hexagonal",
-    # Frontend
-    "react", "nextjs", "tailwind", "vue", "svelte", "ui component",
-    # Mobile
-    "ios swift", "android kotlin", "react native", "flutter",
-    # Multilingual
-    "multilingual code", "multilingual instruction", "thai instruction",
-    # Domain niches
-    "compiler", "embedded", "rust systems", "go concurrency",
-    "performance optimization", "concurrency",
-    # Doc / API
-    "openapi", "api design", "technical writing", "documentation dataset",
-    # Constitutional / safety
-    "constitutional ai", "safety dataset", "preference dataset", "dpo",
-    # Recent mega-mixes
-    "instruction tuning 2025", "post-training dataset", "sft mixture",
-]
+# Load role-driven query map (auto-rebuilds when role-knowledge-map.json updated)
+def _load_role_queries() -> list[tuple[str, str]]:
+    """Returns list of (query, role) tuples. Each role contributes core + adjacent
+    topics. Plus cross-cutting general queries. Total ~250+ queries auto-generated."""
+    role_map_path = HOME / ".surrogate/agents/role-knowledge-map.json"
+    queries: list[tuple[str, str]] = []
+    if role_map_path.exists():
+        try:
+            data = json.loads(role_map_path.read_text())
+        except Exception:
+            data = {"roles": {}, "cross_cutting_topics": []}
+        for role, skills in data.get("roles", {}).items():
+            for q in (skills.get("core") or []):
+                queries.append((q, f"{role}-core"))
+            for q in (skills.get("adjacent") or []):
+                queries.append((q, f"{role}-adj"))
+        for q in data.get("cross_cutting_topics") or []:
+            queries.append((q, "cross-cutting"))
+    # Plus baseline queries (NEVER static — discoverer must keep finding)
+    queries.extend([(q, "general") for q in [
+        "instruction tuning 2025", "instruction tuning 2026",
+        "post-training dataset", "sft mixture",
+        "preference dataset dpo orpo",
+        "dataset 2026", "code dataset 2026",
+        "agentic dataset 2026", "reasoning dataset 2026",
+    ]])
+    return queries
+
+
+def get_queries() -> list[tuple[str, str]]:
+    """Reload on each call so role-knowledge-map.json edits take effect immediately."""
+    return _load_role_queries()
 
 
 def log(msg: str):
@@ -100,11 +87,26 @@ def init_db():
             schema_branch  TEXT,
             cap            INTEGER,
             slug           TEXT,
-            verdict        TEXT
+            verdict        TEXT,
+            role_tag       TEXT          -- which role's query found this
         );
         CREATE INDEX IF NOT EXISTS idx_verdict ON dataset_seen(verdict);
         CREATE INDEX IF NOT EXISTS idx_score ON dataset_seen(quality_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_role ON dataset_seen(role_tag);
+
+        CREATE TABLE IF NOT EXISTS query_history (
+            query        TEXT PRIMARY KEY,
+            role_tag     TEXT,
+            last_run_ts  INTEGER NOT NULL,
+            results_count INTEGER DEFAULT 0,
+            new_finds    INTEGER DEFAULT 0
+        );
         """)
+        # Migration: add role_tag column if upgrading from v1 schema
+        try:
+            c.execute("ALTER TABLE dataset_seen ADD COLUMN role_tag TEXT")
+        except sqlite3.OperationalError:
+            pass  # already exists
 
 
 def hf_get(url: str, timeout: int = 15):
@@ -254,11 +256,14 @@ def evaluate_one(ds_id: str) -> tuple[str, dict | None]:
 
 
 def stamp(ds_id: str, verdict: str, lic: str = "", dl: int = 0,
-          score: float = 0.0, schema: str = "", cap: int = 0, slug: str = ""):
+          score: float = 0.0, schema: str = "", cap: int = 0, slug: str = "",
+          role_tag: str = ""):
     with sqlite3.connect(DB) as c:
         c.execute(
-            "INSERT OR IGNORE INTO dataset_seen VALUES (?,?,?,?,?,?,?,?,?)",
-            (ds_id, int(time.time()), lic, dl, score, schema, cap, slug, verdict)
+            "INSERT OR IGNORE INTO dataset_seen "
+            "(ds_id, evaluated_ts, license, downloads, quality_score, schema_branch, cap, slug, verdict, role_tag) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (ds_id, int(time.time()), lic, dl, score, schema, cap, slug, verdict, role_tag)
         )
 
 
@@ -272,8 +277,13 @@ def discover_cycle() -> dict:
     new_queued = 0
     new_rejected = 0
     seen_this_cycle = 0
-    for q in QUERIES:
-        url = f"https://huggingface.co/api/datasets?search={urllib.parse.quote(q)}&limit=50&sort=downloads&direction=-1"
+    role_finds: dict[str, int] = {}
+
+    queries = get_queries()
+    log(f"  loaded {len(queries)} role-driven queries (covering {len(set(r for _,r in queries))} role tags)")
+
+    for q, role_tag in queries:
+        url = f"https://huggingface.co/api/datasets?search={urllib.parse.quote(q)}&limit=30&sort=downloads&direction=-1"
         results = hf_get(url, timeout=15) or []
         for ds in results:
             ds_id = ds.get("id", "")
@@ -287,19 +297,35 @@ def discover_cycle() -> dict:
                   score=entry.get("score", 0.0) if entry else 0.0,
                   schema=entry.get("schema", "") if entry else "",
                   cap=entry.get("cap", 0) if entry else 0,
-                  slug=entry.get("slug", "") if entry else "")
+                  slug=entry.get("slug", "") if entry else "",
+                  role_tag=role_tag)
             if verdict == "integrated":
+                # Tag the entry with role for downstream training-mix balance
+                if entry: entry["role_tag"] = role_tag
                 append_dynamic(entry)
                 new_integrated += 1
-                log(f"  ✅ {ds_id} | {entry['license']} | {entry['schema']} | cap={entry['cap']:,} | score={entry['score']}")
+                role_finds[role_tag] = role_finds.get(role_tag, 0) + 1
+                log(f"  ✅ [{role_tag}] {ds_id} | {entry['license']} | {entry['schema']} | cap={entry['cap']:,}")
             elif verdict.startswith("queued"):
                 new_queued += 1
             else:
                 new_rejected += 1
-            time.sleep(0.5)  # gentle on HF API
+            time.sleep(0.4)  # gentle on HF API
+
+        # Update query history for this query
+        try:
+            with sqlite3.connect(DB) as c:
+                c.execute(
+                    "INSERT OR REPLACE INTO query_history (query, role_tag, last_run_ts, results_count, new_finds) "
+                    "VALUES (?,?,?,?, COALESCE((SELECT new_finds FROM query_history WHERE query=?),0) + ?)",
+                    (q, role_tag, int(time.time()), len(results), q, new_integrated)
+                )
+        except Exception:
+            pass
 
     return {"evaluated": seen_this_cycle, "integrated": new_integrated,
-            "queued": new_queued, "rejected": new_rejected}
+            "queued": new_queued, "rejected": new_rejected,
+            "by_role": role_finds}
 
 
 def main():

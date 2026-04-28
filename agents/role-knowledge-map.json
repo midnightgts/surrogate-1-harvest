@@ -1,0 +1,355 @@
+{
+  "version": "1.0",
+  "description": "Per-role SDLC knowledge map. Drives hf-dataset-discoverer.py search queries. Each role has CORE skills (must master) and ADJACENT skills (should know). Source: real job descriptions from FAANG / unicorns / OSS projects 2024-2026.",
+  "roles": {
+    "solution-architect": {
+      "core": [
+        "system design", "domain driven design", "bounded context", "aggregate root",
+        "hexagonal architecture", "clean architecture", "onion architecture",
+        "adr architecture decision record", "trade-off analysis",
+        "scalability pattern", "consistency model", "cap theorem", "saga pattern",
+        "event sourcing", "cqrs", "microservices", "monolith first",
+        "integration pattern", "anti-corruption layer", "bff backend for frontend"
+      ],
+      "adjacent": [
+        "threat modeling stride", "data modeling", "api design rest graphql",
+        "monitoring strategy", "capacity planning", "cost optimization",
+        "non-functional requirements", "service level objectives"
+      ]
+    },
+    "backend-engineer": {
+      "core": [
+        "rest api design", "graphql schema", "grpc protobuf",
+        "postgresql", "mysql", "mongodb", "redis cache",
+        "authentication oauth jwt", "authorization rbac abac",
+        "message queue kafka rabbitmq", "background jobs celery sidekiq",
+        "error handling exception", "structured logging traceid",
+        "unit test integration test", "fastapi flask express spring",
+        "go fiber gin", "rust axum actix", "node nestjs", "kotlin ktor"
+      ],
+      "adjacent": [
+        "frontend api consumption", "ci cd pipeline", "docker container",
+        "owasp top 10", "performance profiling pprof", "n+1 query",
+        "circuit breaker", "rate limiting", "idempotency"
+      ]
+    },
+    "frontend-engineer": {
+      "core": [
+        "react hooks suspense", "next.js app router", "vue composition api",
+        "svelte sveltekit", "solid solidstart", "typescript strict",
+        "tailwind css", "css-in-js styled-components", "shadcn radix headless",
+        "state management zustand jotai redux", "tanstack react query",
+        "react testing library", "playwright cypress e2e",
+        "wcag accessibility aria", "web vitals lcp cls inp",
+        "bundle optimization code splitting tree shaking"
+      ],
+      "adjacent": [
+        "backend api integration", "design system tokens",
+        "seo meta tags structured data", "a/b testing experiment",
+        "analytics events", "feature flag", "i18n localization",
+        "progressive web app", "service worker"
+      ]
+    },
+    "mobile-engineer": {
+      "core": [
+        "swiftui combine", "uikit lifecycle",
+        "kotlin jetpack compose", "android navigation",
+        "react native expo", "flutter dart",
+        "offline first cache realm room",
+        "push notification fcm apns", "deep linking universal",
+        "app store optimization aso", "app review guidelines",
+        "crash reporting sentry crashlytics",
+        "memory profiling", "battery optimization"
+      ],
+      "adjacent": [
+        "backend api consumption", "graphql apollo",
+        "analytics amplitude mixpanel", "feature flag",
+        "accessibility voiceover talkback",
+        "in app purchase store kit billing"
+      ]
+    },
+    "devops-engineer": {
+      "core": [
+        "github actions workflow", "gitlab ci", "jenkins pipeline",
+        "circleci", "argocd flux gitops",
+        "docker multi-stage", "buildkit buildx",
+        "kubernetes deployment service ingress",
+        "helm chart kustomize",
+        "terraform module", "pulumi cdk",
+        "ansible chef puppet", "configuration management",
+        "vault secrets sealed-secrets sops",
+        "blue green canary deployment", "feature flag rollout"
+      ],
+      "adjacent": [
+        "networking vpc subnet", "security scanning trivy snyk",
+        "observability prometheus grafana", "finops cost",
+        "container runtime containerd cri-o"
+      ]
+    },
+    "sre-engineer": {
+      "core": [
+        "service level indicator sli", "service level objective slo",
+        "error budget", "burn rate alert", "multi window alerting",
+        "prometheus metrics", "grafana dashboard",
+        "loki promtail fluentd logging", "opentelemetry tracing",
+        "incident response runbook", "blameless postmortem",
+        "five whys root cause", "chaos engineering chaos-mesh litmus",
+        "capacity planning", "load testing k6 locust",
+        "on-call rotation pagerduty"
+      ],
+      "adjacent": [
+        "kubernetes deep", "linux performance ebpf",
+        "networking troubleshooting", "security incident",
+        "cost optimization", "disaster recovery"
+      ]
+    },
+    "cloud-engineer": {
+      "core": [
+        "aws ec2 s3 lambda dynamodb rds vpc iam",
+        "gcp gce gcs cloud-run firestore bigquery",
+        "azure aks cosmos blob",
+        "aws well-architected framework",
+        "multi-region active active passive",
+        "disaster recovery rpo rto",
+        "cost optimization spot reserved savings-plan",
+        "tagging strategy cost allocation",
+        "private subnet nat gateway vpc endpoint",
+        "iam policy least privilege", "kms encryption"
+      ],
+      "adjacent": [
+        "kubernetes eks gke aks", "service mesh istio linkerd",
+        "compliance soc2 hipaa pci", "cdn cloudfront cloudflare",
+        "edge computing lambda-edge"
+      ]
+    },
+    "devsecops-engineer": {
+      "core": [
+        "sast semgrep codeql bandit", "dast zap burp",
+        "sca trivy grype snyk dependabot",
+        "secret scanning gitleaks trufflehog",
+        "container image scan trivy clair",
+        "sbom syft cyclonedx spdx",
+        "sigstore cosign attestation",
+        "slsa supply chain framework",
+        "opa rego conftest policy as code",
+        "shift left security",
+        "vulnerability management cvss epss kev"
+      ],
+      "adjacent": [
+        "incident response forensics", "compliance automation",
+        "threat intelligence mitre att&ck",
+        "zero trust mtls service mesh"
+      ]
+    },
+    "cloud-security": {
+      "core": [
+        "cspm prowler scoutsuite steampipe",
+        "cis benchmark aws azure gcp",
+        "iam audit access analyzer", "least privilege",
+        "encryption at rest in transit kms", "envelope encryption",
+        "key rotation",
+        "waf shield guardduty",
+        "compliance pci-dss hipaa soc2 fedramp gdpr iso27001",
+        "siem splunk elastic security qradar",
+        "cloud detection response cdr",
+        "incident response cloud trail"
+      ],
+      "adjacent": [
+        "network security firewall nsg",
+        "application security owasp",
+        "threat detection lateral movement",
+        "data loss prevention dlp"
+      ]
+    },
+    "data-engineer": {
+      "core": [
+        "airflow dag", "dagster prefect",
+        "spark pyspark", "flink streaming",
+        "kafka connect schema registry",
+        "delta lake iceberg hudi", "lakehouse",
+        "snowflake bigquery redshift",
+        "dbt model test snapshot",
+        "schema evolution avro protobuf",
+        "great expectations dbt-tests data quality",
+        "openlineage data lineage",
+        "cdc debezium"
+      ],
+      "adjacent": [
+        "ml pipeline kubeflow tfx",
+        "observability for data datadog metaflow",
+        "cost optimization warehouse"
+      ]
+    },
+    "ml-engineer": {
+      "core": [
+        "pytorch lightning", "huggingface transformers",
+        "lora qlora peft fine-tuning",
+        "unsloth axolotl", "deepspeed fsdp accelerate",
+        "vllm tgi triton inference", "model serving",
+        "mlflow weights and biases",
+        "feature store feast tecton",
+        "data version control dvc",
+        "rag retrieval augmented generation",
+        "vector database faiss chroma weaviate qdrant",
+        "embedding nomic bge instructor",
+        "reranker cross-encoder bge mxbai",
+        "evaluation lm-eval-harness",
+        "prompt engineering chain of thought"
+      ],
+      "adjacent": [
+        "devops kubernetes",
+        "data engineering",
+        "statistics distribution",
+        "rlhf dpo orpo preference learning",
+        "agent framework langgraph crew autogen"
+      ]
+    },
+    "database-engineer": {
+      "core": [
+        "postgresql tuning", "mysql innodb",
+        "explain analyze query plan",
+        "btree gin gist hash index",
+        "partial index expression index",
+        "table partition list range hash",
+        "vacuum autovacuum bloat",
+        "replication streaming logical",
+        "connection pool pgbouncer",
+        "schema migration sqitch flyway alembic liquibase",
+        "online ddl pt-online-schema-change",
+        "backup pitr point-in-time recovery"
+      ],
+      "adjacent": [
+        "redis caching pattern",
+        "timescaledb timeseries",
+        "clickhouse olap",
+        "graph neo4j",
+        "search elasticsearch opensearch"
+      ]
+    },
+    "qa-engineer": {
+      "core": [
+        "test pyramid", "unit test mock stub",
+        "integration test database",
+        "playwright cypress webdriver e2e",
+        "rest assured supertest api test",
+        "property based testing fast-check hypothesis",
+        "fuzzing afl libfuzzer",
+        "mutation testing pitest stryker",
+        "snapshot test storybook",
+        "contract testing pact",
+        "test factory fixture builder pattern",
+        "coverage line branch path"
+      ],
+      "adjacent": [
+        "ci cd pipeline test stage",
+        "performance testing k6 jmeter",
+        "security testing zap",
+        "accessibility testing axe pa11y",
+        "visual regression chromatic"
+      ]
+    },
+    "performance-engineer": {
+      "core": [
+        "profiling pprof py-spy async-profiler",
+        "load testing k6 locust gatling",
+        "stress testing", "soak test",
+        "p50 p95 p99 latency", "throughput rps",
+        "flame graph",
+        "n+1 query elimination",
+        "caching l1 l2 cdn",
+        "connection pool sizing",
+        "async io goroutine coroutine",
+        "memory profiling heap allocation",
+        "garbage collection tuning"
+      ],
+      "adjacent": [
+        "observability tracing",
+        "database tuning",
+        "kernel ebpf bpftrace",
+        "network latency rtt"
+      ]
+    },
+    "tech-writer": {
+      "core": [
+        "diataxis framework tutorial how-to reference explanation",
+        "openapi swagger redoc",
+        "api design google api guidelines",
+        "readme structure",
+        "adr template",
+        "runbook structure",
+        "code documentation jsdoc rustdoc",
+        "tutorial step by step",
+        "style guide google microsoft chicago"
+      ],
+      "adjacent": [
+        "code reading comprehension",
+        "user research empathy",
+        "i18n internationalization",
+        "screencast tutorial recording"
+      ]
+    },
+    "platform-engineer": {
+      "core": [
+        "internal developer platform idp",
+        "backstage developer portal",
+        "golden path opinionated workflow",
+        "service catalog",
+        "shared ci cd template",
+        "observability infrastructure",
+        "secrets distribution",
+        "feature flag platform",
+        "multi-tenancy"
+      ],
+      "adjacent": [
+        "all sre devops topics",
+        "developer experience dx",
+        "documentation platform"
+      ]
+    },
+    "ai-agent-engineer": {
+      "core": [
+        "react agent reasoning acting",
+        "tool calling function calling",
+        "mcp model context protocol",
+        "agent orchestration langgraph crew autogen",
+        "agentic workflow",
+        "multi agent collaboration",
+        "self critique reflexion",
+        "voyager skill library",
+        "memory episodic procedural",
+        "rag retrieval augmented",
+        "vector search embedding rerank",
+        "prompt engineering xml structured",
+        "constitutional ai safety"
+      ],
+      "adjacent": [
+        "all backend topics",
+        "ml engineering fine-tuning",
+        "evaluation benchmark swe-bench",
+        "cost optimization token budget"
+      ]
+    }
+  },
+  "cross_cutting_topics": [
+    "system design interview", "high scalability",
+    "distributed system consensus raft paxos",
+    "consistency strong eventual causal",
+    "caching strategy ttl invalidation",
+    "rate limiting algorithm token bucket leaky",
+    "load balancer round robin least connection",
+    "circuit breaker hystrix resilience4j",
+    "12 factor app", "twelve factor",
+    "domain language ubiquitous",
+    "code review checklist",
+    "git workflow gitflow trunk-based",
+    "semver conventional commits",
+    "testing best practice",
+    "logging structured json",
+    "tracing opentelemetry w3c",
+    "metrics red use sli",
+    "observability three pillars",
+    "incident severity sev1 sev2",
+    "blameless culture",
+    "engineering excellence dora metrics"
+  ]
+}
