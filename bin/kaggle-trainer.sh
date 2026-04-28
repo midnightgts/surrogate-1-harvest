@@ -20,15 +20,32 @@ mkdir -p "$(dirname "$LOG")"
 KAGGLE_DIR="$HOME/.kaggle"
 mkdir -p "$KAGGLE_DIR"
 
-# Kaggle CLI reads $HOME/.kaggle/kaggle.json (older format) OR $KAGGLE_API_TOKEN
-# env (newer format). User gave us KGAT_... which is the newer format.
+# Kaggle CLI reads BOTH (a) $HOME/.kaggle/kaggle.json AND (b) the env vars
+# KAGGLE_USERNAME + KAGGLE_KEY. We set both for redundancy.
+# IMPORTANT: KAGGLE_USERNAME must match the account that owns the token —
+# 403 'Forbidden' from SaveKernel means username/token mismatch.
 if [[ -n "${KAGGLE_API_TOKEN:-}" ]]; then
-    # Newer Kaggle CLI accepts API token directly via env. Older needs the
-    # legacy kaggle.json. Try both for compatibility.
+    KAGGLE_USERNAME="${KAGGLE_USERNAME:-ashirafuse}"
+    export KAGGLE_USERNAME
+    export KAGGLE_KEY="${KAGGLE_API_TOKEN}"
     cat > "$KAGGLE_DIR/kaggle.json" << EOF
-{"username":"${KAGGLE_USERNAME:-ashirafuse}","key":"${KAGGLE_API_TOKEN}"}
+{"username":"${KAGGLE_USERNAME}","key":"${KAGGLE_API_TOKEN}"}
 EOF
     chmod 600 "$KAGGLE_DIR/kaggle.json"
+
+    # Auth probe — fail fast if username wrong, with helpful message
+    if ! kaggle config view 2>/dev/null | grep -q "$KAGGLE_USERNAME"; then
+        echo "[$(date +%H:%M:%S)] kaggle config not picking up username — trying anyway" | tee -a "$LOG"
+    fi
+    # Whoami probe via raw Kaggle API
+    whoami_resp=$(curl -sS --max-time 10 -u "$KAGGLE_USERNAME:$KAGGLE_API_TOKEN" \
+        "https://www.kaggle.com/api/v1/users/$KAGGLE_USERNAME" 2>&1 | head -c 300)
+    if echo "$whoami_resp" | grep -qE '"id"|"name"'; then
+        echo "[$(date +%H:%M:%S)] kaggle auth ✅ user=$KAGGLE_USERNAME" | tee -a "$LOG"
+    else
+        echo "[$(date +%H:%M:%S)] ⚠ kaggle auth probe — response: ${whoami_resp:0:200}" | tee -a "$LOG"
+        echo "[$(date +%H:%M:%S)]   if this fails, set KAGGLE_USERNAME secret to your real Kaggle username (kaggle.com/<USERNAME>)" | tee -a "$LOG"
+    fi
 fi
 
 if ! command -v kaggle >/dev/null 2>&1; then
@@ -62,6 +79,7 @@ cat > "$WORK_DIR/kernel-metadata.json" << EOF
   "enable_gpu": true,
   "enable_tpu": false,
   "enable_internet": true,
+  "gpu_type": "T4 x2",
   "dataset_sources": [],
   "competition_sources": [],
   "kernel_sources": []
@@ -98,10 +116,10 @@ from transformers import (AutoTokenizer, AutoModelForCausalLM,
     TrainingArguments, Trainer, DataCollatorForSeq2Seq, BitsAndBytesConfig)
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 
-BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
-MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "30000"))
+BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen3-Coder-30B-A3B-Instruct")  # MoE: 30B total, 3B active per forward — biggest that fits Kaggle T4x2 with QLoRA+FSDP
+MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "50000"))
 EPOCHS = float(os.environ.get("EPOCHS", "1"))
-HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-lora-v1")
+HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-30b-a3b-lora-v1")
 
 print(f"━━━ Surrogate-1 LoRA on Kaggle T4 ━━━")
 print(f"base={BASE}  samples={MAX_SAMPLES:,}  epochs={EPOCHS}  hub={HUB_ID}")
