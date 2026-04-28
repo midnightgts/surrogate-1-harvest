@@ -58,9 +58,12 @@ if [[ -z "${KAGGLE_API_TOKEN:-}" ]] || [[ -z "${HF_TOKEN:-}" ]]; then
     exit 0
 fi
 
-# Notebook directory on Kaggle (will be created by kaggle kernels init)
+# Notebook directory on Kaggle. Kernels are date-stamped to avoid 409 Conflict
+# when re-pushing (Kaggle treats kernel updates oddly when slug changes hands).
+# Each push creates a new kernel; old runs remain visible in Kaggle UI for
+# audit / loss-curve comparison.
 NB_OWNER="${KAGGLE_USERNAME:-ashirafuse}"
-NB_SLUG="surrogate-1-lora-trainer"
+NB_SLUG="surrogate-1-lora-trainer-$(date -u +%Y%m%d-%H%M)"
 WORK_DIR="$HOME/.surrogate/state/kaggle-nb"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
