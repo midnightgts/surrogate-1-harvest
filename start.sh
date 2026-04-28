@@ -52,6 +52,17 @@ if [[ -d "$DATA" ]] && [[ -w "$DATA" ]]; then
         ln -sfn "${DATA}/training-pairs.jsonl" "${HOME}/.surrogate/training-pairs.jsonl"
     fi
 
+    # ── One-time offset reset: skip polluted agentic-crawler placeholder backlog ──
+    # Up to 2026-04-28 the crawler wrote ~35K placeholder pairs ("auto-summary pending").
+    # Those aren't trainable. Reset push offset to current line count to bypass them.
+    if [[ ! -f "${HOME}/.surrogate/.offset-reset-done" ]] && [[ -f "${HOME}/.surrogate/training-pairs.jsonl" ]]; then
+        CUR=$(wc -l < "${HOME}/.surrogate/training-pairs.jsonl" | tr -d ' ')
+        echo "$CUR" > "${HOME}/.surrogate/.training-push-offset"
+        echo "$CUR" > "${HOME}/.surrogate/.self-ingest-offset"
+        touch "${HOME}/.surrogate/.offset-reset-done"
+        echo "[$(date +%H:%M:%S)] one-time offset reset → $CUR (skip placeholder backlog)" >> "$LOG_DIR/boot.log"
+    fi
+
     echo "[$(date +%H:%M:%S)] persistent /data linked (state, logs, memory, skills, sessions, workspace, ollama, training-pairs)" >> "$LOG_DIR/boot.log"
 else
     echo "[$(date +%H:%M:%S)] WARN: /data not writable — running ephemeral!" >> "$LOG_DIR/boot.log"

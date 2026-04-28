@@ -157,23 +157,23 @@ for link in links:
 con.commit()
 print(f"  [ok {status}] {title[:60]} ← {url[:60]} (+{added} new links)")
 
-# Save fetched page as training pair (page → summary) — summarize via local LLM later
-# For now just log raw page metadata
+# Save fetched page metadata to a SEPARATE crawl log — NOT to training-pairs.jsonl.
+# (Placeholder responses pollute training data; only insert when we have real summary.)
+crawl_log = os.path.expanduser("~/.surrogate/state/agentic-crawl-raw.jsonl")
 text_only = re.sub(r"<[^>]+>", " ", body)
 text_only = re.sub(r"\s+", " ", text_only).strip()[:6000]
 if len(text_only) > 200:
-    pair = {
+    raw_record = {
         "ts": time.time(),
         "source": "agentic-crawler",
         "url": url,
         "title": title,
         "domain": domain,
         "depth": depth,
-        "prompt": f"Summarize this page from {domain} (title: {title}):\n\n{text_only[:3000]}",
-        "response": f"[crawled {time.strftime('%Y-%m-%d %H:%M')} — auto-summary pending]",
+        "text": text_only[:6000],
     }
-    with open(pairs, "a") as f:
-        f.write(json.dumps(pair, ensure_ascii=False) + "\n")
+    with open(crawl_log, "a") as f:
+        f.write(json.dumps(raw_record, ensure_ascii=False) + "\n")
 PYEOF
 }
 
