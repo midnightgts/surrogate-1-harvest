@@ -271,6 +271,14 @@ echo "[$(date +%H:%M:%S)] self-heal-watchdog started (mem<85%, ingest<20m, push<
 nohup bash ~/.surrogate/bin/gh-actions-ticker.sh > "$LOG_DIR/gh-actions-ticker.log" 2>&1 &
 echo "[$(date +%H:%M:%S)] gh-actions-ticker started (60s tick, dispatches arkashira+ashiradevops-alt)" >> "$LOG_DIR/boot.log"
 
+# ── 7e3. LLM BURST GENERATOR — synthetic training pairs from 8 free LLMs ────
+# Cerebras + Groq + OpenRouter + Gemini + Chutes + NV NIM + Samba + Kimi.
+# Each cycle fires 3 prompts at every active provider in parallel, writes
+# {prompt, response} pairs to training-pairs.jsonl. Combined free-tier
+# budget: ~7000+ pairs/day. Skips any provider whose key env is not set.
+nohup python3 ~/.surrogate/bin/llm-burst-generator.py > "$LOG_DIR/llm-burst-generator.log" 2>&1 &
+echo "[$(date +%H:%M:%S)] llm-burst-generator started (8 LLM APIs in parallel, ~7K synthetic pairs/day)" >> "$LOG_DIR/boot.log"
+
 # ── 7f. PARALLEL BULK INGEST (slug-hash sharded; 6 shards on cpu-basic) ─────
 # Was 16 shards but caused 'Memory limit exceeded (16Gi)' OOM. Each shard
 # peaks ~1 GB while streaming via 'datasets' lib. Watchdog above provides
