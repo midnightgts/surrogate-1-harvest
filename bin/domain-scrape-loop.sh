@@ -32,10 +32,10 @@ while true; do
     [[ $((NOW - START)) -gt $DUR ]] && break
     ITER=$((ITER + 1))
 
-    # Health check — break if load > 10 (Linux: "load average:", macOS: "load averages:")
+    # Health check — pause only on real saturation (load>50 on HF Space CPU)
     LOAD=$(uptime | sed -E 's/.*load average[s]?:[[:space:]]*//' | awk -F',' '{print int($1)}')
     LOAD=${LOAD:-0}
-    if [[ $LOAD -gt 10 ]]; then
+    if [[ $LOAD -gt 50 ]]; then
         echo "  [iter=$ITER] load=$LOAD pause 30s" | tee -a "$LOG"
         sleep 30
         continue
