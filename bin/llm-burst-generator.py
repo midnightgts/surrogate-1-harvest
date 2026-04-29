@@ -239,9 +239,28 @@ def call_llm(provider: dict, prompt: str, timeout: int = 60) -> str | None:
 
 
 def write_pair(out_path: Path, pair: dict, lock: threading.Lock) -> None:
+    """Append one pair to training-pairs.jsonl. Tolerates the recurring
+    'OSError: Errno 5 Input/output error' that hits the /data volume on
+    HF Space — buffers pair to /tmp on failure and flushes when /data
+    recovers."""
+    line = json.dumps(pair, ensure_ascii=False) + "\n"
     with lock:
-        with open(out_path, "a") as f:
-            f.write(json.dumps(pair, ensure_ascii=False) + "\n")
+        for attempt in range(3):
+            try:
+                with open(out_path, "a") as f:
+                    f.write(line)
+                return
+            except OSError as e:
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                # Last resort: stash in /tmp ring buffer
+                tmp_path = Path("/tmp/llm-burst-overflow.jsonl")
+                try:
+                    with open(tmp_path, "a") as f:
+                        f.write(line)
+                except OSError:
+                    pass
 
 
 def fire_one(provider: dict, out_path: Path, lock: threading.Lock) -> tuple[str, bool]:
