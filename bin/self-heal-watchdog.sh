@@ -57,8 +57,9 @@ heal_memory() {
     # Adaptive aggressiveness — kill more shards as pct gets dangerously close.
     local kill_count=1
     [[ "$pct" -ge 90 ]] && kill_count=2     # 90%+: kill 2 youngest
-    [[ "$pct" -ge 95 ]] && kill_count=3     # 95%+: kill 3 youngest, plus parquet-direct if running
+    [[ "$pct" -ge 95 ]] && kill_count=3     # 95%+: kill 3 youngest + supporting hogs
 
+    # Tier-1 victims — dataset-enrich shards
     local victims
     victims=$(pgrep -f "dataset-enrich.sh" | sort -nr | head -"$kill_count")
     if [[ -n "$victims" ]]; then
@@ -67,10 +68,21 @@ heal_memory() {
             kill -TERM "$pid" 2>/dev/null || true
         done
     fi
-    # Also nuke parquet-direct if mem is critical — it's the second-biggest hog
+
+    # Tier-2 victims (when pct critical) — large parquet/dataset-mirror loaders
+    if [[ "$pct" -ge 90 ]]; then
+        for pat in "dataset-mirror.sh" "parquet-direct-ingest.sh" "llm-burst-generator.py"; do
+            local pid=$(pgrep -f "$pat" | head -1)
+            [[ -n "$pid" ]] && { log "  -> CRITICAL: SIGTERM $pat pid=$pid"; kill -TERM "$pid" 2>/dev/null || true; }
+        done
+    fi
+
+    # Tier-3 nuclear (95%+) — kill agentic-crawler + research-loop too
     if [[ "$pct" -ge 95 ]]; then
-        local pq=$(pgrep -f "parquet-direct-ingest.sh" | head -1)
-        [[ -n "$pq" ]] && { log "  -> CRITICAL: SIGTERM parquet-direct pid=$pq"; kill -TERM "$pq" 2>/dev/null || true; }
+        for pat in "agentic-crawler.sh" "github-agentic-crawler" "scrape-continuous"; do
+            local pid=$(pgrep -f "$pat" | head -1)
+            [[ -n "$pid" ]] && { log "  -> NUCLEAR: SIGTERM $pat pid=$pid"; kill -TERM "$pid" 2>/dev/null || true; }
+        done
     fi
 }
 

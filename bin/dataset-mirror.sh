@@ -194,11 +194,15 @@ for src_id, slug in SOURCES:
         out_rows = []
         for shard in sorted(local_path.rglob("*.parquet")):
             try:
-                table = pq.read_table(shard)
-                df = table.to_pylist()
+                # Stream by row group to keep memory bounded — reading 5GB
+                # parquet as one table easily blows 16GB Space cap.
+                pf = pq.ParquetFile(shard)
             except Exception as e:
                 print(f"  skip shard {shard.name}: {type(e).__name__}: {str(e)[:80]}", flush=True)
                 continue
+            row_groups_iter = (pf.read_row_group(i).to_pylist()
+                               for i in range(pf.num_row_groups))
+            df = (row for rg in row_groups_iter for row in rg)
             for row in df:
                 scanned += 1
                 # ── Robust prompt/response extraction across many schemas ──
