@@ -393,6 +393,33 @@ while true; do
     # Every 6 hr: Lightning AI H200 training run (free 4hr H200 quota = ~13/mo).
     # H200 141GB VRAM fits Qwen3-Coder-480B-A35B QLoRA — biggest free training.
     [[ $((M % 360)) -eq 45 ]] && bash ~/.surrogate/bin/lightning-trainer.sh >> "$LOG_DIR/lightning-trainer.log" 2>&1 &
+
+    # ── Round 5 (2026-04) sustainability loops ──────────────────────────
+    # Every 6 hr (offset 90): self-improve loop — gen problems, judge,
+    # winners → training data, losers → reflexion-store.
+    [[ $((M % 360)) -eq 90 ]] && bash ~/.surrogate/bin/v2/self-improve-loop.sh >> "$LOG_DIR/self-improve.log" 2>&1 &
+    # Every 30 min (offset 22): mine new tool-call traces from logs into
+    # SFT + DPO data, plus voyager skill candidates.
+    [[ $((M % 30)) -eq 22 ]] && python3 ~/.surrogate/bin/v2/tool-trace-collector.py >> "$LOG_DIR/tool-trace.log" 2>&1 &
+    # Every 60 min (offset 17): export promoted voyager skills to JSONL
+    # (training-data slice + inference-time retrieval source).
+    [[ $((M % 60)) -eq 17 ]] && python3 ~/.surrogate/bin/v2/voyager-skills.py export >> "$LOG_DIR/voyager.log" 2>&1 &
+    # Daily 07:00 UTC: active-learning batch from one bulk-mirror file.
+    # Skips silently if no pool yet.
+    [[ $((M % 1440)) -eq 420 ]] && {
+        POOL=$(ls -t "$DATA"/bulk-mirror/*.jsonl 2>/dev/null | head -1)
+        [[ -n "$POOL" ]] && python3 ~/.surrogate/bin/v2/active-learning.py \
+            --pool "$POOL" --n 200 --scan 1500 \
+            >> "$LOG_DIR/active-learning.log" 2>&1 &
+    }
+    # Daily 08:00 UTC: constitutional self-critique on yesterday's
+    # winners (pulls latest self-improve winners file).
+    [[ $((M % 1440)) -eq 480 ]] && {
+        WIN=$(ls -t "$DATA"/v2/self-improve/winners-*.jsonl 2>/dev/null | head -1)
+        [[ -n "$WIN" ]] && python3 ~/.surrogate/bin/v2/constitutional-loop.py \
+            --input "$WIN" --n 200 \
+            >> "$LOG_DIR/constitutional.log" 2>&1 &
+    }
     sleep 60
 done
 CRONSH
