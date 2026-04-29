@@ -74,7 +74,7 @@ echo "[$(date +%H:%M:%S)] kaggle-trainer cycle start" | tee -a "$LOG"
 cat > "$WORK_DIR/kernel-metadata.json" << EOF
 {
   "id": "${NB_OWNER}/${NB_SLUG}",
-  "title": "surrogate-1 LoRA trainer",
+  "title": "${NB_SLUG}",
   "code_file": "train.py",
   "language": "python",
   "kernel_type": "script",

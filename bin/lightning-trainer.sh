@@ -132,17 +132,20 @@ studio_name = f"surrogate-1-train-{time.strftime('%Y%m%d-%H%M', time.gmtime())}"
 print(f"▶ connecting/creating Studio: {studio_name}")
 
 try:
-    studio = Studio(name=studio_name, teamspace="default", create_ok=True,
-                    user_id=os.environ["LIGHTNING_USER_ID"],
-                    api_key=os.environ["LIGHTNING_API_KEY"])
+    # SDK reads auth from env LIGHTNING_USER_ID + LIGHTNING_API_KEY which the
+    # bash wrapper exported above. Don't pass them as kwargs (TypeError).
+    studio = Studio(name=studio_name, teamspace="default", create_ok=True)
     studio.start(machine=Machine.H200)
     print(f"  ✅ Studio H200 started")
     studio.upload_file(script_path, "train.py")
     print(f"  ✅ uploaded train.py")
-    # Fire the training in background — SDK doesn't block, returns job id
-    job = studio.run("python train.py", in_background=True)
+    # Fire training in background — SDK returns immediately
+    try:
+        job = studio.run("python train.py", in_background=True)
+    except TypeError:
+        # in_background may not be supported in this SDK version — try without
+        job = studio.run("python train.py")
     print(f"  ✅ submitted job: {job}")
-    print(f"  Studio URL: {studio.url if hasattr(studio, 'url') else '(check lightning.ai dashboard)'}")
 except Exception as e:
     print(f"  ❌ {type(e).__name__}: {str(e)[:300]}")
     sys.exit(3)
