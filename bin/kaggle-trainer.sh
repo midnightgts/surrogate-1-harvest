@@ -82,7 +82,7 @@ cat > "$WORK_DIR/kernel-metadata.json" << EOF
   "enable_gpu": true,
   "enable_tpu": false,
   "enable_internet": true,
-  "gpu_type": "T4 x2",
+  "gpu_type": "GPU T4 x2",
   "dataset_sources": [],
   "competition_sources": [],
   "kernel_sources": []
@@ -150,16 +150,53 @@ from transformers import (AutoTokenizer, AutoModelForCausalLM,
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from trl import SFTConfig, SFTTrainer
 
-BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct")
+# ── Hardware-aware base model selection ────────────────────────────────────
+# Kaggle's GPU allocator sometimes gives P100 instead of the requested T4×2,
+# so we pick the largest base model that fits the actual hardware. Override
+# explicitly via BASE_MODEL env if you want to force a specific model.
+def pick_base_for_hardware():
+    """Auto-pick largest 4-bit-fitting Qwen-Coder for available GPU memory."""
+    import torch
+    if not torch.cuda.is_available():
+        return "Qwen/Qwen2.5-Coder-7B-Instruct", 7.0  # CPU-only fallback
+    n_gpus = torch.cuda.device_count()
+    total_gb = sum(torch.cuda.get_device_properties(i).total_memory
+                   for i in range(n_gpus)) / 1e9
+    name = torch.cuda.get_device_name(0)
+    print(f"  detected: {n_gpus}× {name}  total {total_gb:.0f} GB")
+    # 4-bit base model footprint (rough): 32B≈16GB, 14B≈7GB, 7B≈4GB
+    # Need ≥1.5× headroom for LoRA + grads + activations + optimizer.
+    if n_gpus >= 2 and total_gb >= 30:        # T4×2 / dual-A100 etc.
+        return "Qwen/Qwen2.5-Coder-32B-Instruct", 32.0
+    if total_gb >= 38:                        # A100-40 / L40S-48
+        return "Qwen/Qwen2.5-Coder-32B-Instruct", 32.0
+    if total_gb >= 14:                        # P100-16 / T4-16 single
+        return "Qwen/Qwen2.5-Coder-14B-Instruct", 14.0
+    return "Qwen/Qwen2.5-Coder-7B-Instruct", 7.0
+
+
+_auto_base, _auto_size = pick_base_for_hardware()
+BASE = os.environ.get("BASE_MODEL", _auto_base)
 MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "100000"))
 EPOCHS = float(os.environ.get("EPOCHS", "1"))
-HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-32B-v1.5")
-SEQ_LEN = int(os.environ.get("SEQ_LEN", "2048"))   # T4×2 budget
+
+# HUB_MODEL_ID auto-suffixes by detected size unless explicitly set.
+# 32B→v1.5, 14B→v1.5-mid, 7B→v1.5-mini — so different runs go to different
+# repos and don't clobber each other when Kaggle hands us different hardware.
+_default_hub = {
+    32.0: "axentx/surrogate-1-coder-32B-v1.5",
+    14.0: "axentx/surrogate-1-coder-14B-v1.5-mid",
+    7.0:  "axentx/surrogate-1-coder-7B-v1.5-mini",
+}.get(_auto_size, "axentx/surrogate-1-coder-32B-v1.5")
+HUB_ID = os.environ.get("HUB_MODEL_ID", _default_hub)
+# seq_len auto-shrinks for smaller hardware budget
+_default_seq = {32.0: 2048, 14.0: 4096, 7.0: 8192}.get(_auto_size, 2048)
+SEQ_LEN = int(os.environ.get("SEQ_LEN", str(_default_seq)))
 
 # Detect hardware capability for precision + attention impl
 BF16_OK = torch.cuda.is_bf16_supported()
 SM_MAJOR = torch.cuda.get_device_capability(0)[0] if torch.cuda.is_available() else 0
-FA2_OK = SM_MAJOR >= 8   # Flash Attention 2 needs Ampere+; T4 = SM 7.5 → no
+FA2_OK = SM_MAJOR >= 8   # Flash Attention 2 needs Ampere+; T4/P100 = SM 7.x
 ATTN_IMPL = "flash_attention_2" if FA2_OK else "sdpa"
 
 print("━━━ Surrogate-1 v1.5 SFT on Kaggle T4×2 ━━━")
