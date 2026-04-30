@@ -73,6 +73,16 @@ if [[ -x "${REPO}/bin/v2/auto-startup-loop.sh" ]] \
     echo "[$(date +%H:%M:%S)] auto-startup-loop started (45 personae 15min cycle)" >> "$LOG"
 fi
 
+# auto-bench-watcher — fires bench-v1-vs-v15.sh as soon as the v1.5
+# checkpoint lands on HF Hub. Idempotent (marker file prevents re-fire).
+# Respawn-on-death idiom — pgrep before spawning so cron retick is safe.
+if [[ -x "${REPO}/bin/v2/auto-bench-watcher.sh" ]] \
+   && ! pgrep -f "auto-bench-watcher.sh" >/dev/null; then
+    nohup bash "${REPO}/bin/v2/auto-bench-watcher.sh" \
+        > "/data/logs/auto-bench-watcher.log" 2>&1 &
+    echo "[$(date '+%H:%M:%S')] auto-bench-watcher started (anchor)" >> "$LOG"
+fi
+
 # auto-orchestrate-continuous — 4 parallel dev-chain workers on axentx repos.
 # (Disabled on HF Space cpu-basic LOW_MEM; anchor 24GB ARM runs it just fine.)
 if [[ -x "${REPO}/bin/auto-orchestrate-continuous.sh" ]] \
