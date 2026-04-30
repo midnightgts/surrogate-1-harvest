@@ -6,7 +6,7 @@
 # multiple tokens, verified in parallel by the target model.
 #
 # Architecture (Qwen2.5-Coder-7B target):
-#   target  → axentx/surrogate-1-coder-7b-lora-v2-merged
+#   target  → axentx/surrogate-1-coder-7b-v2-merged
 #   draft   → Qwen/Qwen2.5-Coder-1.5B-Instruct (≈ same tokenizer family)
 #   method  → eagle3 head trained on 50K self-generated traces
 #
@@ -17,7 +17,7 @@
 set -uo pipefail
 
 VLLM_BIN="${VLLM_BIN:-vllm}"
-TARGET="${TARGET:-axentx/surrogate-1-coder-7b-lora-v2-merged}"
+TARGET="${TARGET:-axentx/surrogate-1-coder-7b-v2-merged}"
 DRAFT="${DRAFT:-Qwen/Qwen2.5-Coder-1.5B-Instruct}"
 NUM_SPEC="${NUM_SPEC:-5}"           # tokens proposed per step
 PORT="${PORT:-8000}"

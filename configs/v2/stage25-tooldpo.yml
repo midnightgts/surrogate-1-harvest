@@ -2,7 +2,7 @@
 # Continue from Stage 2. Teaches when to refuse vs force tool-use.
 # Run: axolotl train configs/v2/stage25-tooldpo.yml
 
-base_model: axentx/surrogate-1-coder-7b-lora-v2-dpo
+base_model: axentx/surrogate-1-coder-7b-v2-dpo
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true
@@ -57,7 +57,7 @@ save_total_limit: 3
 logging_steps: 10
 
 # This is the FINAL Phase A push — tag as -mvp
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-mvp
+hub_model_id: axentx/surrogate-1-coder-7b-v2-mvp
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false

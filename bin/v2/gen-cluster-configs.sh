@@ -119,7 +119,7 @@ save_steps: 100
 save_total_limit: 2
 logging_steps: 10
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-${name}
+hub_model_id: axentx/surrogate-1-coder-7b-v2-${name}
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false

@@ -138,7 +138,7 @@ liger_kernel: true                                # 30-40% memory reduction
 7. `m-a-p/CodeFeedback-Filtered-Instruction` → 10K (complexity ≥4/5)
 8. axentx OWN data (sanitized) → 5K-10K (DevSecOps domain bias)
 
-**ETA**: ~12-15 hr Lightning H200 → push `axentx/surrogate-1-coder-7b-lora-v2-sft`
+**ETA**: ~12-15 hr Lightning H200 → push `axentx/surrogate-1-coder-7b-v2-sft`
 
 ### Stage 1.5 — Tool-Use SFT (insert after Stage 1, +50pp BFCL)
 ```yaml
@@ -160,7 +160,7 @@ epochs: 2
 lr: 1e-4
 adapter: same all-linear DoRA from Stage 1
 ```
-**ETA**: ~8 hr H200 → push `axentx/surrogate-1-coder-7b-lora-v2-toolsft`
+**ETA**: ~8 hr H200 → push `axentx/surrogate-1-coder-7b-v2-toolsft`
 
 ### Stage 1.6 — Multi-Agent SFT (the secret sauce — orchestrator pattern)
 ```yaml
@@ -187,7 +187,7 @@ tools_taught:
   - shell_exec(cmd)
   - search_repo(query)
 ```
-**ETA**: ~10 hr H200 → push `axentx/surrogate-1-coder-7b-lora-v2-agent`
+**ETA**: ~10 hr H200 → push `axentx/surrogate-1-coder-7b-v2-agent`
 
 ### Stage 2 — Code DPO (1 epoch, after SFT consolidates)
 ```yaml
@@ -235,7 +235,7 @@ rewards: validator-graded composite
 data: SWE-Gym + R2E-Gym + custom DevSecOps (~10K rollouts)
 ETA: ~24 hr H200
 ```
-**Push**: `axentx/surrogate-1-coder-7b-lora-v2-rlvr`
+**Push**: `axentx/surrogate-1-coder-7b-v2-rlvr`
 
 ---
 
@@ -244,7 +244,7 @@ ETA: ~24 hr H200
 ### Layer 1 — XGrammar constrained decoding (FREE, week 1)
 ```bash
 # vLLM 2026-04+ default backend
-vllm serve axentx/surrogate-1-coder-7b-lora-v2 \
+vllm serve axentx/surrogate-1-coder-7b-v2 \
   --guided-decoding-backend xgrammar
 ```
 - **JSON schema** for tool calls (no malformed function calls)
@@ -297,7 +297,7 @@ if avg_contradiction > 0.6:
 ### Serving (vLLM + DCA = 4× extension free)
 ```bash
 VLLM_ATTENTION_BACKEND=DUAL_CHUNK_FLASH_ATTN \
-vllm serve axentx/surrogate-1-coder-7b-lora-v2 \
+vllm serve axentx/surrogate-1-coder-7b-v2 \
   --max-model-len 131072 \
   --rope-scaling '{"type":"yarn","factor":4.0,"original_max_position_embeddings":32768}'
 ```
@@ -552,7 +552,7 @@ Plus PII (BigCode starpii NER) + secret detection (Yelp detect-secrets) + low-qu
 - [ ] DevSecOps custom eval baseline + ≥65% lint+sec clean
 
 ### Infrastructure
-- [ ] Push to `axentx/surrogate-1-coder-7b-lora-v2-{sft,toolsft,agent,dpo,rlvr}`
+- [ ] Push to `axentx/surrogate-1-coder-7b-v2-{sft,toolsft,agent,dpo,rlvr}`
 - [ ] Deploy vLLM serve with XGrammar + DCA + MInference
 - [ ] Voyager skill library bootstrap (~50 seed skills)
 - [ ] Letta memory backend integrated (Cognee + FalkorDB)
@@ -562,7 +562,7 @@ Plus PII (BigCode starpii NER) + secret detection (Yelp detect-secrets) + low-qu
 ### Documentation
 - [ ] outcome.md updated with v2 results + lessons
 - [ ] knowledge_index.md appended (10+ patterns)
-- [ ] README.md for `axentx/surrogate-1-coder-7b-lora-v2-rlvr` HF Hub repo
+- [ ] README.md for `axentx/surrogate-1-coder-7b-v2-rlvr` HF Hub repo
 
 ---
 

@@ -39,7 +39,7 @@ HF_DATASETS=(
     "axentx/surrogate-1-pairs-D"
 )
 HF_MODELS=(
-    "axentx/surrogate-1-coder-7b-lora-v1"
+    "axentx/surrogate-1-coder-7b-v1"
 )
 # GH_REPOS dynamically discovered via /api/orgs/{org}/repos.
 # Local Mac paths checked separately (dev-chain operates on local clones).

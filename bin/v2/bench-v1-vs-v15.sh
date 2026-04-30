@@ -2,9 +2,9 @@
 # Surrogate-1 — 3-way benchmark: v1 vs base32B vs v1.5.
 #
 # Compares:
-#   A. v1            = Qwen2.5-Coder-7B + axentx/surrogate-1-coder-7b-lora-v1
+#   A. v1            = Qwen2.5-Coder-7B + axentx/surrogate-1-coder-7b-v1
 #   B. base32B       = Qwen/Qwen2.5-Coder-32B-Instruct (no LoRA)
-#   C. v1.5          = Qwen2.5-Coder-32B + axentx/surrogate-1-coder-32b-lora-v1.5
+#   C. v1.5          = Qwen2.5-Coder-32B + axentx/surrogate-1-coder-32B-v1.5
 #
 # Suite (~6-8 GPU-hr per model on T4×2 / L40S):
 #   1. EvalPlus HumanEval+ — code completion (smoke, target ≥84% on v1.5)
@@ -34,9 +34,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 MODELS=(
-    "v1|axentx/surrogate-1-coder-7b-lora-v1|Qwen/Qwen2.5-Coder-7B-Instruct"
+    "v1|axentx/surrogate-1-coder-7b-v1|Qwen/Qwen2.5-Coder-7B-Instruct"
     "base32B|Qwen/Qwen2.5-Coder-32B-Instruct|"
-    "v1.5|axentx/surrogate-1-coder-32b-lora-v1.5|Qwen/Qwen2.5-Coder-32B-Instruct"
+    "v1.5|axentx/surrogate-1-coder-32B-v1.5|Qwen/Qwen2.5-Coder-32B-Instruct"
 )
 
 OUT_ROOT="$HOME/.surrogate/eval/bench-v1-vs-v15-$(date +%Y%m%d-%H%M)"

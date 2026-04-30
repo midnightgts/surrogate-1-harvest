@@ -2,7 +2,7 @@
 # Continue from Stage 1.5. Adds 20K + 500 synth orchestrator traces → GAIA L1 20-30%.
 # Run: axolotl train configs/v2/stage16-agent.yml
 
-base_model: axentx/surrogate-1-coder-7b-lora-v2-toolsft
+base_model: axentx/surrogate-1-coder-7b-v2-toolsft
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true
@@ -71,7 +71,7 @@ save_steps: 200
 save_total_limit: 3
 logging_steps: 10
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-agent
+hub_model_id: axentx/surrogate-1-coder-7b-v2-agent
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false

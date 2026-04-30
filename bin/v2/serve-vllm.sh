@@ -12,7 +12,7 @@
 # Usage: bash serve-vllm.sh [model] [port]
 
 set -uo pipefail
-MODEL="${1:-axentx/surrogate-1-coder-7b-lora-v2-merged}"
+MODEL="${1:-axentx/surrogate-1-coder-7b-v2-merged}"
 PORT="${2:-8000}"
 
 # Install vLLM 2026-04+ (default XGrammar backend)
@@ -37,15 +37,15 @@ if [[ "${USE_MULTI_LORA:-0}" == "1" ]]; then
     --max-loras 9
     --max-lora-rank 64
     --lora-modules
-        eng-build=axentx/surrogate-1-coder-7b-lora-v2-eng-build
-        eng-ops=axentx/surrogate-1-coder-7b-lora-v2-eng-ops
-        eng-sec=axentx/surrogate-1-coder-7b-lora-v2-eng-sec
-        eng-ai=axentx/surrogate-1-coder-7b-lora-v2-eng-ai
-        product-ux=axentx/surrogate-1-coder-7b-lora-v2-product-ux
-        gtm=axentx/surrogate-1-coder-7b-lora-v2-gtm
-        finance-legal=axentx/surrogate-1-coder-7b-lora-v2-finance-legal
-        compliance=axentx/surrogate-1-coder-7b-lora-v2-compliance
-        meta-orchestrator=axentx/surrogate-1-coder-7b-lora-v2-meta-orchestrator
+        eng-build=axentx/surrogate-1-coder-7b-v2-eng-build
+        eng-ops=axentx/surrogate-1-coder-7b-v2-eng-ops
+        eng-sec=axentx/surrogate-1-coder-7b-v2-eng-sec
+        eng-ai=axentx/surrogate-1-coder-7b-v2-eng-ai
+        product-ux=axentx/surrogate-1-coder-7b-v2-product-ux
+        gtm=axentx/surrogate-1-coder-7b-v2-gtm
+        finance-legal=axentx/surrogate-1-coder-7b-v2-finance-legal
+        compliance=axentx/surrogate-1-coder-7b-v2-compliance
+        meta-orchestrator=axentx/surrogate-1-coder-7b-v2-meta-orchestrator
     "
 fi
 

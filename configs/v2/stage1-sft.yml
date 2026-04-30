@@ -122,7 +122,7 @@ save_total_limit: 3
 logging_steps: 10
 
 # Hub push
-hub_model_id: axentx/surrogate-1-72b-lora-v2-sft
+hub_model_id: axentx/surrogate-1-coder-72b-v2-sft
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false

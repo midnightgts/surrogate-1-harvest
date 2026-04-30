@@ -9,10 +9,10 @@
 #   4. BFCL v3 (PRIMARY tool use, ≥70 overall target)
 #   5. RULER @ 32K (long-context, ≥90 target)
 #
-# Usage: bash eval-tier1.sh axentx/surrogate-1-coder-7b-lora-v2-mvp
+# Usage: bash eval-tier1.sh axentx/surrogate-1-coder-7b-v2-mvp
 
 set -uo pipefail
-MODEL="${1:-axentx/surrogate-1-coder-7b-lora-v2-mvp}"
+MODEL="${1:-axentx/surrogate-1-coder-7b-v2-mvp}"
 OUT_DIR="$HOME/.surrogate/eval/$(echo "$MODEL" | tr '/' '_')"
 mkdir -p "$OUT_DIR"
 echo "[$(date +%H:%M:%S)] Tier 1 eval for $MODEL → $OUT_DIR"

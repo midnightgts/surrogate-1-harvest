@@ -51,7 +51,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, Ta
 # H200 141 GB → can fit 480B QLoRA. If H200 not available, falls back gracefully.
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8")
 MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "30000"))   # 4 hr H200 fits ~30K samples
-HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-480b-a35b-lora-v1")
+HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-480b-a35b-v1")
 
 print(f"━━━ Surrogate-1 LoRA on Lightning H200 ━━━")
 print(f"base={BASE}  samples={MAX_SAMPLES:,}  hub={HUB_ID}")

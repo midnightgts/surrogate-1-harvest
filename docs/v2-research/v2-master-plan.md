@@ -134,7 +134,7 @@ gradient_checkpointing: true
 flash_attention: true                         # FA3 if H100/H200, FA2 on T4/L40S
 
 # Hub
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-sft
+hub_model_id: axentx/surrogate-1-coder-7b-v2-sft
 hub_strategy: every_save
 push_to_hub: true
 ```
@@ -145,7 +145,7 @@ ETA on Lightning L40S: **8-12 hr** for 95K samples × 3 epochs (vs. v1's 12 min 
 
 ```yaml
 # Axolotl config: stage2-dpo.yml
-base_model: axentx/surrogate-1-coder-7b-lora-v2-sft   # output of stage 1
+base_model: axentx/surrogate-1-coder-7b-v2-sft   # output of stage 1
 adapter: lora                                          # continue from SFT LoRA
 # Same LoRA config as stage 1
 
@@ -165,7 +165,7 @@ lr_scheduler: constant                                 # NOT cosine
 num_epochs: 1                                          # 1 epoch only
 warmup_ratio: 0.0
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-dpo
+hub_model_id: axentx/surrogate-1-coder-7b-v2-dpo
 ```
 
 ETA: 4-6 hr on L40S.
@@ -214,7 +214,7 @@ ETA: 4-6 hr on L40S.
 # 1. EvalPlus HumanEval+ (smoke test — should NOT regress)
 pip install evalplus[vllm]
 evalplus.evaluate \
-  --model axentx/surrogate-1-coder-7b-lora-v2-dpo \
+  --model axentx/surrogate-1-coder-7b-v2-dpo \
   --dataset humaneval \
   --backend vllm \
   --greedy
@@ -222,7 +222,7 @@ evalplus.evaluate \
 
 # 2. EvalPlus MBPP+ (smoke test)
 evalplus.evaluate \
-  --model axentx/surrogate-1-coder-7b-lora-v2-dpo \
+  --model axentx/surrogate-1-coder-7b-v2-dpo \
   --dataset mbpp \
   --backend vllm \
   --greedy
@@ -232,7 +232,7 @@ evalplus.evaluate \
 git clone https://github.com/LiveCodeBench/LiveCodeBench
 cd LiveCodeBench
 python -m lcb_runner.runner.main \
-  --model axentx/surrogate-1-coder-7b-lora-v2-dpo \
+  --model axentx/surrogate-1-coder-7b-v2-dpo \
   --scenario codegeneration \
   --evaluate \
   --release_version release_v6
@@ -248,7 +248,7 @@ python -m lcb_runner.runner.main \
 # Validators: docker build, kubeval, terraform plan, actionlint, semgrep
 
 python eval/devsecops_eval.py \
-  --model axentx/surrogate-1-coder-7b-lora-v2-dpo \
+  --model axentx/surrogate-1-coder-7b-v2-dpo \
   --eval-set evals/devsecops-v1.jsonl \
   --validators docker,kubeval,tflint,actionlint,semgrep
 # Establish v1 baseline → target v2 +15pp absolute
@@ -328,7 +328,7 @@ python eval/devsecops_eval.py \
 - [ ] Curated dataset assembled (~95K SFT + 55K DPO)
 - [ ] Stage 1 SFT training complete on Lightning L40S
 - [ ] Stage 2 DPO training complete
-- [ ] Pushed to `axentx/surrogate-1-coder-7b-lora-v2-dpo`
+- [ ] Pushed to `axentx/surrogate-1-coder-7b-v2-dpo`
 - [ ] EvalPlus HumanEval+ ≥84%, MBPP+ ≥75% (no regression)
 - [ ] **LiveCodeBench v6 ≥42%** (primary success metric)
 - [ ] Custom DevSecOps eval baseline established

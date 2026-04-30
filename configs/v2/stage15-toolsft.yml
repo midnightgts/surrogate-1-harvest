@@ -2,7 +2,7 @@
 # Continue from Stage 1 LoRA. Adds 102K tool-use samples → BFCL v3 70+.
 # Run: axolotl train configs/v2/stage15-toolsft.yml
 
-base_model: axentx/surrogate-1-coder-7b-lora-v2-sft   # output of Stage 1
+base_model: axentx/surrogate-1-coder-7b-v2-sft   # output of Stage 1
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true
@@ -68,7 +68,7 @@ save_steps: 200
 save_total_limit: 3
 logging_steps: 10
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-toolsft
+hub_model_id: axentx/surrogate-1-coder-7b-v2-toolsft
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false

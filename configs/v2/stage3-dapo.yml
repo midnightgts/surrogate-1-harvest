@@ -30,7 +30,7 @@ algorithm:
 actor_rollout_ref:
   hybrid_engine: true
   model:
-    path: axentx/surrogate-1-coder-7b-lora-v2-merged   # output of merge-9-loras.sh
+    path: axentx/surrogate-1-coder-7b-v2-merged   # output of merge-9-loras.sh
     enable_gradient_checkpointing: true
     use_remove_padding: true
   actor:
@@ -109,7 +109,7 @@ trainer:
   project_name: surrogate-1-v2
   experiment_name: stage3-dapo-rlvr
   default_local_dir: ./out/v2-stage3-dapo
-  hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-rlvr
+  hub_model_id: axentx/surrogate-1-coder-7b-v2-rlvr
   hub_strategy: every_save
   push_to_hub: true
 

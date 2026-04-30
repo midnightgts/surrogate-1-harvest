@@ -38,7 +38,7 @@ POLLUTION_PATTERNS = [
     r"(?:\.sh|\.py)?\b",
 
     # 5. Specific axentx repo identifiers — model shouldn't reproduce these
-    r"axentx/surrogate-1-(?:training-pairs|pairs-[A-D]|coder-[a-z0-9]+-lora-v\d+)",
+    r"axentx/surrogate-1-(?:training-pairs|pairs-[A-D]|coder-[a-zA-Z0-9-]+-v[\d.]+)",
 
     # 6. Token / secret-shaped strings (leaked credentials)
     r"\b(?:hf_[A-Za-z0-9]{30,}|sk-or-v\d-[A-Za-z0-9]{40,}|sk-ant-[A-Za-z0-9-]{30,}|"

@@ -63,7 +63,7 @@ fi
 # Each push creates a new kernel; old runs remain visible in Kaggle UI for
 # audit / loss-curve comparison.
 NB_OWNER="${KAGGLE_USERNAME:-ashirafuse}"
-NB_SLUG="surrogate-1-lora-trainer-$(date -u +%Y%m%d-%H%M)"
+NB_SLUG="surrogate-1-trainer-$(date -u +%Y%m%d-%H%M)"
 WORK_DIR="$HOME/.surrogate/state/kaggle-nb"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
@@ -153,7 +153,7 @@ from trl import SFTConfig, SFTTrainer
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct")
 MAX_SAMPLES = int(os.environ.get("MAX_SAMPLES", "100000"))
 EPOCHS = float(os.environ.get("EPOCHS", "1"))
-HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-32b-lora-v1.5")
+HUB_ID = os.environ.get("HUB_MODEL_ID", "axentx/surrogate-1-coder-32B-v1.5")
 SEQ_LEN = int(os.environ.get("SEQ_LEN", "2048"))   # T4×2 budget
 
 # Detect hardware capability for precision + attention impl

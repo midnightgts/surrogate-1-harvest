@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
             TIMEOUT_SEC=10800  # 3 hr
             shift ;;
         --eval-tier1)
-            SCRIPT="cd /tmp && git clone --depth 1 https://huggingface.co/spaces/axentx/surrogate-1 src && cd src && bash bin/v2/eval-tier1.sh axentx/surrogate-1-coder-7b-lora-v2-merged"
+            SCRIPT="cd /tmp && git clone --depth 1 https://huggingface.co/spaces/axentx/surrogate-1 src && cd src && bash bin/v2/eval-tier1.sh axentx/surrogate-1-coder-7b-v2-merged"
             FLAVOR="a10g-large"
             TIMEOUT_SEC=14400
             shift ;;

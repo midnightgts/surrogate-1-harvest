@@ -2,7 +2,7 @@
 # Continue from Stage 1.6. ~55K bug/no-bug pairs + exec-graded preferences.
 # Run: axolotl train configs/v2/stage2-codedpo.yml
 
-base_model: axentx/surrogate-1-coder-7b-lora-v2-agent
+base_model: axentx/surrogate-1-coder-7b-v2-agent
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true
@@ -74,7 +74,7 @@ save_steps: 200
 save_total_limit: 3
 logging_steps: 10
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-dpo
+hub_model_id: axentx/surrogate-1-coder-7b-v2-dpo
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false

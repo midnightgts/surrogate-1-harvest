@@ -7,18 +7,18 @@
 # - TIES: arxiv 2306.01708
 # - Practical guide: 5+ adapters → DARE-TIES (consensus + sparsify + rescale)
 #
-# Output: axentx/surrogate-1-coder-7b-lora-v2-merged
+# Output: axentx/surrogate-1-coder-7b-v2-merged
 #
 # Each cluster LoRA must already be trained + pushed to HF Hub:
-#   axentx/surrogate-1-coder-7b-lora-v2-eng-build
-#   axentx/surrogate-1-coder-7b-lora-v2-eng-ops
-#   axentx/surrogate-1-coder-7b-lora-v2-eng-sec
-#   axentx/surrogate-1-coder-7b-lora-v2-eng-ai
-#   axentx/surrogate-1-coder-7b-lora-v2-product-ux
-#   axentx/surrogate-1-coder-7b-lora-v2-gtm
-#   axentx/surrogate-1-coder-7b-lora-v2-finance-legal
-#   axentx/surrogate-1-coder-7b-lora-v2-compliance
-#   axentx/surrogate-1-coder-7b-lora-v2-meta-orchestrator
+#   axentx/surrogate-1-coder-7b-v2-eng-build
+#   axentx/surrogate-1-coder-7b-v2-eng-ops
+#   axentx/surrogate-1-coder-7b-v2-eng-sec
+#   axentx/surrogate-1-coder-7b-v2-eng-ai
+#   axentx/surrogate-1-coder-7b-v2-product-ux
+#   axentx/surrogate-1-coder-7b-v2-gtm
+#   axentx/surrogate-1-coder-7b-v2-finance-legal
+#   axentx/surrogate-1-coder-7b-v2-compliance
+#   axentx/surrogate-1-coder-7b-v2-meta-orchestrator
 
 set -uo pipefail
 set -a; source "$HOME/.hermes/.env" 2>/dev/null; set +a
@@ -56,23 +56,23 @@ parameters:
   int8_mask: true
 dtype: bfloat16
 models:
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-build
+  - model: axentx/surrogate-1-coder-7b-v2-eng-build
     parameters: {weight: 0.20, density: 0.55}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ops
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ops
     parameters: {weight: 0.18, density: 0.55}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-sec
+  - model: axentx/surrogate-1-coder-7b-v2-eng-sec
     parameters: {weight: 0.15, density: 0.55}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ai
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ai
     parameters: {weight: 0.10, density: 0.50}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-product-ux
+  - model: axentx/surrogate-1-coder-7b-v2-product-ux
     parameters: {weight: 0.08, density: 0.50}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-gtm
+  - model: axentx/surrogate-1-coder-7b-v2-gtm
     parameters: {weight: 0.05, density: 0.45}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-finance-legal
+  - model: axentx/surrogate-1-coder-7b-v2-finance-legal
     parameters: {weight: 0.04, density: 0.45}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-compliance
+  - model: axentx/surrogate-1-coder-7b-v2-compliance
     parameters: {weight: 0.05, density: 0.50}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-meta-orchestrator
+  - model: axentx/surrogate-1-coder-7b-v2-meta-orchestrator
     parameters: {weight: 0.15, density: 0.55}
 EOF
 }
@@ -88,23 +88,23 @@ parameters:
   norm_clip: 1.0
 dtype: bfloat16
 models:
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-build
+  - model: axentx/surrogate-1-coder-7b-v2-eng-build
     parameters: {weight: 0.20}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ops
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ops
     parameters: {weight: 0.18}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-sec
+  - model: axentx/surrogate-1-coder-7b-v2-eng-sec
     parameters: {weight: 0.15}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ai
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ai
     parameters: {weight: 0.10}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-product-ux
+  - model: axentx/surrogate-1-coder-7b-v2-product-ux
     parameters: {weight: 0.08}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-gtm
+  - model: axentx/surrogate-1-coder-7b-v2-gtm
     parameters: {weight: 0.05}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-finance-legal
+  - model: axentx/surrogate-1-coder-7b-v2-finance-legal
     parameters: {weight: 0.04}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-compliance
+  - model: axentx/surrogate-1-coder-7b-v2-compliance
     parameters: {weight: 0.05}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-meta-orchestrator
+  - model: axentx/surrogate-1-coder-7b-v2-meta-orchestrator
     parameters: {weight: 0.15}
 EOF
 }
@@ -120,23 +120,23 @@ parameters:
   calibration: "fisher"
 dtype: bfloat16
 models:
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-build
+  - model: axentx/surrogate-1-coder-7b-v2-eng-build
     parameters: {weight: 0.20}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ops
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ops
     parameters: {weight: 0.18}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-sec
+  - model: axentx/surrogate-1-coder-7b-v2-eng-sec
     parameters: {weight: 0.15}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ai
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ai
     parameters: {weight: 0.10}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-product-ux
+  - model: axentx/surrogate-1-coder-7b-v2-product-ux
     parameters: {weight: 0.08}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-gtm
+  - model: axentx/surrogate-1-coder-7b-v2-gtm
     parameters: {weight: 0.05}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-finance-legal
+  - model: axentx/surrogate-1-coder-7b-v2-finance-legal
     parameters: {weight: 0.04}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-compliance
+  - model: axentx/surrogate-1-coder-7b-v2-compliance
     parameters: {weight: 0.05}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-meta-orchestrator
+  - model: axentx/surrogate-1-coder-7b-v2-meta-orchestrator
     parameters: {weight: 0.15}
 EOF
 }
@@ -152,23 +152,23 @@ parameters:
   cov_window: 64
 dtype: bfloat16
 models:
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-build
+  - model: axentx/surrogate-1-coder-7b-v2-eng-build
     parameters: {weight: 0.20}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ops
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ops
     parameters: {weight: 0.18}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-sec
+  - model: axentx/surrogate-1-coder-7b-v2-eng-sec
     parameters: {weight: 0.15}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-eng-ai
+  - model: axentx/surrogate-1-coder-7b-v2-eng-ai
     parameters: {weight: 0.10}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-product-ux
+  - model: axentx/surrogate-1-coder-7b-v2-product-ux
     parameters: {weight: 0.08}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-gtm
+  - model: axentx/surrogate-1-coder-7b-v2-gtm
     parameters: {weight: 0.05}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-finance-legal
+  - model: axentx/surrogate-1-coder-7b-v2-finance-legal
     parameters: {weight: 0.04}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-compliance
+  - model: axentx/surrogate-1-coder-7b-v2-compliance
     parameters: {weight: 0.05}
-  - model: axentx/surrogate-1-coder-7b-lora-v2-meta-orchestrator
+  - model: axentx/surrogate-1-coder-7b-v2-meta-orchestrator
     parameters: {weight: 0.15}
 EOF
 }
@@ -192,7 +192,7 @@ mergekit-yaml "$CFG" "$OUT/v2-$SUFFIX" \
   --lazy-unpickle \
   --cuda 2>&1 | tail -30
 
-REPO_ID="axentx/surrogate-1-coder-7b-lora-v2-${SUFFIX}"
+REPO_ID="axentx/surrogate-1-coder-7b-v2-${SUFFIX}"
 echo ""
 echo "▶ Pushing merged super-LoRA → $REPO_ID"
 HF_TOKEN="$HF_TOKEN" REPO_ID="$REPO_ID" OUT="$OUT" SUFFIX="$SUFFIX" METHOD="$METHOD" \

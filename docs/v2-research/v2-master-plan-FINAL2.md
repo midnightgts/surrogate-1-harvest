@@ -155,7 +155,7 @@ LoRA r=64, all-linear targets, DoRA enabled. Each cluster trained independently 
 ```bash
 # vLLM with full optimization
 VLLM_ATTENTION_BACKEND=DUAL_CHUNK_FLASH_ATTN \
-vllm serve axentx/surrogate-1-coder-7b-lora-v2 \
+vllm serve axentx/surrogate-1-coder-7b-v2 \
   --max-model-len 131072 \
   --rope-scaling '{"type":"yarn","factor":4.0,"original_max_position_embeddings":32768}' \
   --guided-decoding-backend xgrammar \

@@ -704,7 +704,7 @@ Generate 5k synthetic parallel rows. Target: 10% of training data has parallel c
 ```yaml
 # axolotl-config/stage1_5-tool-fc.yml
 # Run AFTER stage 1 SFT (general code), BEFORE stage 2 DPO (general code)
-base_model: axentx/surrogate-1-coder-7b-lora-v2-sft   # output of v2 stage 1
+base_model: axentx/surrogate-1-coder-7b-v2-sft   # output of v2 stage 1
 model_type: AutoModelForCausalLM
 adapter: lora
 load_in_4bit: true
@@ -763,7 +763,7 @@ bf16: true
 gradient_checkpointing: true
 flash_attention: true
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-tool-fc
+hub_model_id: axentx/surrogate-1-coder-7b-v2-tool-fc
 hub_strategy: every_save
 push_to_hub: true
 
@@ -776,7 +776,7 @@ output_dir: ./outputs/v2-tool-fc
 
 ```yaml
 # axolotl-config/stage2_5-when2call-dpo.yml
-base_model: axentx/surrogate-1-coder-7b-lora-v2-tool-fc
+base_model: axentx/surrogate-1-coder-7b-v2-tool-fc
 adapter: lora
 
 rl: dpo
@@ -796,7 +796,7 @@ num_epochs: 1
 warmup_ratio: 0.0
 sequence_len: 4096                                      # shorter — pref pairs
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-final
+hub_model_id: axentx/surrogate-1-coder-7b-v2-final
 ```
 
 ### 9.3 Inference (vLLM with Hermes parser, post-FT)

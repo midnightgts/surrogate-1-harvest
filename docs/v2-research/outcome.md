@@ -8,7 +8,7 @@ status: in-progress
 # Surrogate-1 v1 Training Session — Honest Audit
 
 ## Goal
-Train ONE Surrogate-1 LoRA on axentx OWN data, push to HF Hub at axentx/surrogate-1-coder-7b-lora-v1.
+Train ONE Surrogate-1 LoRA on axentx OWN data, push to HF Hub at axentx/surrogate-1-coder-7b-v1.
 
 ## What Actually Worked
 
@@ -51,7 +51,7 @@ Train ONE Surrogate-1 LoRA on axentx OWN data, push to HF Hub at axentx/surrogat
    • push-training-to-hf (every 3 min)       • push to HF Hub
    • parquet-direct-ingest                    
    ↓                                          ↓
-   axentx/surrogate-1-training-pairs    axentx/surrogate-1-coder-7b-lora-v1
+   axentx/surrogate-1-training-pairs    axentx/surrogate-1-coder-7b-v1
    (5 sibling repos, ~454 GB / 2271 files)   (LoRA adapter ~50 MB)
    ↓                                          ↑
    batches/{date}/chunk-*.jsonl  ─────────────┘  via direct CDN URL (no auth, no API)
@@ -81,7 +81,7 @@ Train ONE Surrogate-1 LoRA on axentx OWN data, push to HF Hub at axentx/surrogat
 - Training: 1 epoch, lr=2e-4 cosine, batch=2 × grad_accum=8
 - Total steps: ~83 steps (1329 / 16)
 - ETA: ~10 min on L40S
-- Output: `axentx/surrogate-1-coder-7b-lora-v1` on HF Hub
+- Output: `axentx/surrogate-1-coder-7b-v1` on HF Hub
 
 ## Patterns Created in this Session
 
@@ -116,7 +116,7 @@ User feedback during session:
 
 ## ✅ FINAL STATUS — SHIPPED 2026-04-29 06:08 UTC
 
-**Surrogate-1 v1 LoRA pushed successfully**: https://huggingface.co/axentx/surrogate-1-coder-7b-lora-v1
+**Surrogate-1 v1 LoRA pushed successfully**: https://huggingface.co/axentx/surrogate-1-coder-7b-v1
 
 ### Final Spec (live on HF Hub)
 - Base: `Qwen/Qwen2.5-Coder-7B-Instruct`
@@ -140,4 +140,4 @@ User feedback during session:
 2. Add `enriched/{slug}/*.parquet` (mirror data, schema-projected)
 3. Switch to Qwen2.5-Coder-14B-Instruct (still fits L40S 48GB at 4-bit)
 4. Add eval pass: HumanEval + MBPP locally on Lightning
-5. Plan: ship as `axentx/surrogate-1-coder-14b-lora-v2`
+5. Plan: ship as `axentx/surrogate-1-coder-14b-v2`

@@ -60,13 +60,13 @@ if [[ "$STEP" =~ ^(stage25|all)$ ]]; then
     echo "[$(date +%H:%M:%S)] ▶ Step 6: Stage 2.5 Tool DPO (~3 hr)" | tee -a "$LOG"
     cd "$HOME/.surrogate/hf-space/configs/v2"
     accelerate launch -m axolotl.cli.train stage25-tooldpo.yml 2>&1 | tee -a "$LOG"
-    echo "🎯 Phase A MVP push: axentx/surrogate-1-coder-7b-lora-v2-mvp" | tee -a "$LOG"
+    echo "🎯 Phase A MVP push: axentx/surrogate-1-coder-7b-v2-mvp" | tee -a "$LOG"
 fi
 
 # ── 7. Tier 1 Eval ────────────────────────────────────────────────────────────
 if [[ "$STEP" =~ ^(eval|all)$ ]]; then
     echo "[$(date +%H:%M:%S)] ▶ Step 7: Tier 1 Eval suite" | tee -a "$LOG"
-    bash "$HOME/.surrogate/bin/v2/eval-tier1.sh" axentx/surrogate-1-coder-7b-lora-v2-mvp 2>&1 | tee -a "$LOG"
+    bash "$HOME/.surrogate/bin/v2/eval-tier1.sh" axentx/surrogate-1-coder-7b-v2-mvp 2>&1 | tee -a "$LOG"
 fi
 
 echo "[$(date +%H:%M:%S)] ═══ Phase A done ═══" | tee -a "$LOG"

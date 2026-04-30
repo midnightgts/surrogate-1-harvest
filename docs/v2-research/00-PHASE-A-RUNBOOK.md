@@ -1,6 +1,6 @@
 # Surrogate-1 v2 — Phase A Runbook (Ready to Execute)
 
-**Goal**: Ship `axentx/surrogate-1-coder-7b-lora-v2-mvp` in 4 weeks, $400 cash, free Lightning H200.
+**Goal**: Ship `axentx/surrogate-1-coder-7b-v2-mvp` in 4 weeks, $400 cash, free Lightning H200.
 
 ---
 
@@ -150,16 +150,16 @@ gradient_checkpointing: true
 flash_attention: true
 liger_kernel: true     # 30-40% memory reduction
 
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-sft
+hub_model_id: axentx/surrogate-1-coder-7b-v2-sft
 hub_strategy: every_save
 push_to_hub: true
 ```
-**ETA**: ~12-15 hr H200 → push `axentx/surrogate-1-coder-7b-lora-v2-sft`
+**ETA**: ~12-15 hr H200 → push `axentx/surrogate-1-coder-7b-v2-sft`
 
 **Day 10**: Stage 1.5 — Tool-Use SFT (continue from Stage 1 LoRA)
 ```yaml
 # /tmp/v2-stage15.yaml
-base_model: axentx/surrogate-1-coder-7b-lora-v2-sft
+base_model: axentx/surrogate-1-coder-7b-v2-sft
 adapter: lora    # continue same LoRA
 # Same r=64, all-linear, DoRA
 
@@ -170,14 +170,14 @@ datasets:
 
 num_epochs: 2
 learning_rate: 1.0e-4
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-toolsft
+hub_model_id: axentx/surrogate-1-coder-7b-v2-toolsft
 ```
 **ETA**: ~8 hr → push toolsft
 
 **Day 11-12**: Stage 1.6 — Multi-Agent SFT
 ```yaml
 # /tmp/v2-stage16.yaml
-base_model: axentx/surrogate-1-coder-7b-lora-v2-toolsft
+base_model: axentx/surrogate-1-coder-7b-v2-toolsft
 adapter: lora
 
 # Tools to teach via system prompt
@@ -205,16 +205,16 @@ datasets:
 
 num_epochs: 2
 learning_rate: 1.0e-4
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-agent
+hub_model_id: axentx/surrogate-1-coder-7b-v2-agent
 ```
 **ETA**: ~10 hr → push agent
 
 **Day 13**: Eval Tier 1 smoke tests
 ```bash
 # Don't regress base
-evalplus.evaluate --model axentx/surrogate-1-coder-7b-lora-v2-agent --dataset humaneval --backend vllm --greedy
+evalplus.evaluate --model axentx/surrogate-1-coder-7b-v2-agent --dataset humaneval --backend vllm --greedy
 # Target ≥84%
-evalplus.evaluate --model axentx/surrogate-1-coder-7b-lora-v2-agent --dataset mbpp --backend vllm --greedy
+evalplus.evaluate --model axentx/surrogate-1-coder-7b-v2-agent --dataset mbpp --backend vllm --greedy
 # Target ≥75%
 
 # Primary metric
@@ -250,7 +250,7 @@ ruler eval --model axentx/... --max-len 32768 --tasks all
 **Day 17**: Stage 2 — Code DPO
 ```yaml
 # /tmp/v2-stage2.yaml
-base_model: axentx/surrogate-1-coder-7b-lora-v2-agent
+base_model: axentx/surrogate-1-coder-7b-v2-agent
 adapter: lora    # continue
 
 rl: dpo
@@ -269,14 +269,14 @@ datasets:
 learning_rate: 5e-6
 lr_scheduler: constant
 num_epochs: 1
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-dpo
+hub_model_id: axentx/surrogate-1-coder-7b-v2-dpo
 ```
 **ETA**: ~5 hr → push dpo
 
 **Day 18**: Stage 2.5 — Tool DPO
 ```yaml
 # /tmp/v2-stage25.yaml
-base_model: axentx/surrogate-1-coder-7b-lora-v2-dpo
+base_model: axentx/surrogate-1-coder-7b-v2-dpo
 rl: dpo
 
 datasets:
@@ -285,7 +285,7 @@ datasets:
 
 learning_rate: 5e-6
 num_epochs: 1
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-mvp     # final MVP push
+hub_model_id: axentx/surrogate-1-coder-7b-v2-mvp     # final MVP push
 ```
 **ETA**: ~3 hr → final push
 
@@ -311,7 +311,7 @@ hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-mvp     # final MVP push
 **Day 22-28**: Triage + decide
 
 **If targets hit (LCB ≥42% + SWE-Bench Lite ≥25% + BFCL ≥70 + no leaks)**:
-- Tag `axentx/surrogate-1-coder-7b-lora-v2-mvp` as official MVP
+- Tag `axentx/surrogate-1-coder-7b-v2-mvp` as official MVP
 - Update outcome.md + knowledge_index.md
 - Plan Phase B (cluster expertise) — start Week 5
 
@@ -350,7 +350,7 @@ hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-mvp     # final MVP push
 
 ## Success Definition (Phase A done)
 
-- [ ] `axentx/surrogate-1-coder-7b-lora-v2-mvp` pushed to HF Hub
+- [ ] `axentx/surrogate-1-coder-7b-v2-mvp` pushed to HF Hub
 - [ ] HumanEval+ ≥84%, MBPP+ ≥75% (no regression)
 - [ ] **LiveCodeBench v6 ≥42%** (primary)
 - [ ] **SWE-Bench Lite ≥25%** (primary)
