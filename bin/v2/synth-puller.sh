@@ -14,7 +14,19 @@
 set -uo pipefail
 [[ -f "$HOME/.hermes/.env" ]] && { set -a; source "$HOME/.hermes/.env" 2>/dev/null; set +a; }
 
-SPACE_URL="${SYNTH_SPACE_URL:-https://surrogate1-surrogate-1-zero-gpu.hf.space}"
+# Round-robin between 2 PRO ZeroGPU endpoints (combined 50K min/mo).
+# Each minute picks one — over an hour each gets ~30 calls so the per-account
+# quota burn is balanced. Override with SYNTH_SPACE_URL env to force one.
+SPACE_POOL=(
+    "https://ashirato-surrogate-1-zero-gpu.hf.space"
+    "https://surrogate1-surrogate-1-zero-gpu.hf.space"
+)
+if [[ -n "${SYNTH_SPACE_URL:-}" ]]; then
+    SPACE_URL="$SYNTH_SPACE_URL"
+else
+    M=$(($(date +%s) / 60))
+    SPACE_URL="${SPACE_POOL[$(( M % ${#SPACE_POOL[@]} ))]}"
+fi
 OUT_DIR="${HOME}/.surrogate/data/v2/synth"
 LOG="${HOME}/.surrogate/logs/synth-puller.log"
 mkdir -p "$OUT_DIR" "$(dirname "$LOG")"
