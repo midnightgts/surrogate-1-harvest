@@ -81,7 +81,7 @@ def llm_ladder(prompt: str, sys_prompt: str = "", max_tokens: int = 1024) -> str
         ("$HOME/.surrogate/bin/groq-bridge.sh", "groq"),
         ("$HOME/.surrogate/bin/openrouter-bridge.sh", "openrouter"),
         ("$HOME/.surrogate/bin/gemini-bridge.sh", "gemini"),
-        ("$HOME/.surrogate/bin/chutes-bridge.sh", "chutes"),
+        # ("$HOME/.surrogate/bin/chutes-bridge.sh", "chutes")),  # disabled 2026-04-30: chutes 402 free-tier dead
         ("$HOME/.surrogate/bin/ollama-bridge.sh", "ollama"),
     ]
     import subprocess

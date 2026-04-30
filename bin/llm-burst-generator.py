@@ -62,13 +62,7 @@ PROVIDERS = [
         "model": "gemini-2.5-flash",                  # newer than 2.0-flash-exp
         "rpm_budget": 60,
     },
-    {
-        "name": "chutes",
-        "url": "https://llm.chutes.ai/v1/chat/completions",   # corrected subdomain
-        "key_env": "CHUTES_API_KEY",
-        "model": "deepseek-ai/DeepSeek-V3-0324",
-        "rpm_budget": 30,
-    },
+    # chutes provider disabled 2026-04-30 (402 free-tier dead),
     {
         "name": "nvidia",
         "url": "https://integrate.api.nvidia.com/v1/chat/completions",

@@ -58,7 +58,7 @@ def _llm_ladder(prompt: str, sys_prompt: str = "",
         "$HOME/.surrogate/bin/groq-bridge.sh",
         "$HOME/.surrogate/bin/openrouter-bridge.sh",
         "$HOME/.surrogate/bin/gemini-bridge.sh",
-        "$HOME/.surrogate/bin/chutes-bridge.sh",
+        # "$HOME/.surrogate/bin/chutes-bridge.sh",  # disabled 2026-04-30: chutes 402 free-tier dead
         "$HOME/.surrogate/bin/ollama-bridge.sh",
     ]
     for sh in bridges:

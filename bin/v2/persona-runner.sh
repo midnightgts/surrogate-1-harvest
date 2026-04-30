@@ -90,7 +90,7 @@ LADDER_BRIDGES=(
     "$HOME/.surrogate/bin/groq-bridge.sh"
     "$HOME/.surrogate/bin/gemini-bridge.sh"
     "$HOME/.surrogate/bin/hf-inference-bridge.sh"
-    "$HOME/.surrogate/bin/chutes-bridge.sh"
+    # "$HOME/.surrogate/bin/chutes-bridge.sh"  # disabled 2026-04-30: chutes 402 free-tier dead
     # On anchor:
     "$HOME/.surrogate/hf-space/bin/anchor/local-llm-bridge.sh"
 )

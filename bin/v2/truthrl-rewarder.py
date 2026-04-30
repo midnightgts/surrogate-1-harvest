@@ -68,7 +68,7 @@ def llm_judge_correctness(prompt: str, response: str,
         "$HOME/.surrogate/bin/groq-bridge.sh",
         "$HOME/.surrogate/bin/openrouter-bridge.sh",
         "$HOME/.surrogate/bin/gemini-bridge.sh",
-        "$HOME/.surrogate/bin/chutes-bridge.sh",
+        # "$HOME/.surrogate/bin/chutes-bridge.sh",  # disabled 2026-04-30: chutes 402 free-tier dead
         "$HOME/.surrogate/bin/ollama-bridge.sh",
     ]
     sys_p = ("You are a strict factual reviewer. Decide if the response is "

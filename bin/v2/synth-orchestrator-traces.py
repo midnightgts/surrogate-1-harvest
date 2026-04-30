@@ -158,7 +158,7 @@ def gen_orchestrator_trace(scenario: str, idx: int) -> dict | None:
                 {"role": "user", "content": sub_prompt},
             ]
             # Rotate providers for diversity
-            providers = ["groq", "openrouter", "gemini", "cerebras", "chutes"]
+            providers = ["groq", "openrouter", "gemini", "cerebras"]  # chutes 402 disabled 2026-04-30
             sub_resp = llm_call(providers[i % len(providers)],
                                 "llama-3.3-70b-versatile" if providers[i % len(providers)] == "groq" else "qwen-3-235b-a22b-instruct-2507",
                                 sub_msg, 800)

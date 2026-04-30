@@ -308,7 +308,7 @@ case "$PROVIDER" in
         # NVIDIA NIM — Llama 3.3 70B, diverse model pool (Nemotron, DeepSeek-R1, Qwen-Coder)
         RESULT=$(echo "$PROMPT" | "$HOME/.surrogate/bin/nvidia-bridge.sh" --model qwen 2>>"$LOG")
         ;;
-    chutes)
+    chutes_DISABLED_402)
         # Chutes.ai aggregator — free tier needs activation; currently may 402
         RESULT=$(echo "$PROMPT" | "$HOME/.surrogate/bin/chutes-bridge.sh" --model deepseek 2>>"$LOG")
         ;;

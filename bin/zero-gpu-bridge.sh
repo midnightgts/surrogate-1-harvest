@@ -37,7 +37,7 @@ echo "[$(date '+%H:%M:%S')] space=$SPACE_URL len=${#PROMPT}" >> "$LOG"
 RESPONSE=$(SPACE="$SPACE_URL" MAX_TOKENS="$MAX_TOKENS" TEMP="$TEMP" TOP_P="$TOP_P" \
     HF_TOKEN_USE="$HF_TOKEN_USE" \
 python3 -c "
-import json, os, re, sys, urllib.request, urllib.error
+import json, os, re, sys, time, urllib.request, urllib.error
 prompt = sys.stdin.read()
 space = os.environ['SPACE']
 # Gradio 4.44 with .queue() rejects POST /api/predict and POST
@@ -49,48 +49,64 @@ hdr = {'Content-Type':'application/json'}
 tok = os.environ.get('HF_TOKEN_USE','')
 if tok: hdr['Authorization'] = 'Bearer ' + tok
 
-# Step 1: enqueue
-try:
-    req = urllib.request.Request(
-        f'{space}/call/respond',
-        data=json.dumps({'data':[prompt]}).encode(), headers=hdr)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        eid = json.load(r).get('event_id','')
-except urllib.error.HTTPError as e:
-    print(f'zero-gpu-bridge HTTP {e.code} (enqueue): {e.read().decode(\"utf-8\",\"ignore\")[:300]}', file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'zero-gpu-bridge enqueue error: {e}', file=sys.stderr); sys.exit(1)
 
-if not eid:
-    print('zero-gpu-bridge: no event_id', file=sys.stderr); sys.exit(1)
+def call_once(attempt: int) -> tuple[str, str]:
+    '''Returns (output, err). On success: (text, ''); on fail: ('', reason).'''
+    # Step 1: enqueue
+    try:
+        req = urllib.request.Request(
+            f'{space}/call/respond',
+            data=json.dumps({'data':[prompt]}).encode(), headers=hdr)
+        with urllib.request.urlopen(req, timeout=30) as r:
+            eid = json.load(r).get('event_id','')
+    except urllib.error.HTTPError as e:
+        return '', f'enqueue HTTP {e.code}: {e.read().decode(\"utf-8\",\"ignore\")[:200]}'
+    except Exception as e:
+        return '', f'enqueue {type(e).__name__}: {e}'
+    if not eid:
+        return '', 'no event_id'
 
-# Step 2: poll SSE stream until 'event: complete'. Cold-start ~30-60s
-# for 7B+LoRA load; warm 5-15s for chat.
-try:
-    req = urllib.request.Request(f'{space}/call/respond/{eid}', headers=hdr)
-    with urllib.request.urlopen(req, timeout=240) as r:
-        body = r.read().decode('utf-8','ignore')
+    # Step 2: poll SSE stream. Cold-start ~30-90s on first call after gc;
+    # warm 5-15s. Allow up to 300s total to absorb worst-case load+LoRA.
+    try:
+        req = urllib.request.Request(f'{space}/call/respond/{eid}', headers=hdr)
+        with urllib.request.urlopen(req, timeout=300) as r:
+            body = r.read().decode('utf-8','ignore')
+    except urllib.error.HTTPError as e:
+        return '', f'poll HTTP {e.code}: {e.read().decode(\"utf-8\",\"ignore\")[:200]}'
+    except Exception as e:
+        return '', f'poll {type(e).__name__}: {e}'
+
     blocks = re.findall(r'event:\s*complete\s*\ndata:\s*(.*)', body)
     if not blocks:
-        # surface error events when present
         errs = re.findall(r'event:\s*error\s*\ndata:\s*(.*)', body)
         if errs:
-            print(f'zero-gpu-bridge SSE error: {errs[-1][:300]}', file=sys.stderr)
-        else:
-            print(f'zero-gpu-bridge: no complete event in {len(body)}b', file=sys.stderr)
-        sys.exit(1)
-    payload = json.loads(blocks[-1])
+            return '', f'SSE error: {errs[-1][:200]}'
+        return '', f'no complete event in {len(body)}b body'
+
+    try:
+        payload = json.loads(blocks[-1])
+    except Exception as e:
+        return '', f'json parse: {e}'
     out = payload[0] if isinstance(payload, list) and payload else ''
-    if isinstance(out, str):
-        print(out); sys.exit(0)
-    print(f'zero-gpu-bridge: unexpected payload {str(payload)[:200]}', file=sys.stderr)
-    sys.exit(1)
-except urllib.error.HTTPError as e:
-    print(f'zero-gpu-bridge HTTP {e.code} (poll): {e.read().decode(\"utf-8\",\"ignore\")[:300]}', file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'zero-gpu-bridge poll error: {e}', file=sys.stderr); sys.exit(1)
+    if isinstance(out, str) and out.strip():
+        return out, ''
+    return '', f'empty/unexpected payload {str(payload)[:120]}'
+
+
+# Two-attempt strategy: cold-start often returns empty/error on first hit
+# while ZeroGPU allocates the A10G. Wait 4s and retry once.
+last_err = ''
+for attempt in range(2):
+    out, err = call_once(attempt)
+    if out:
+        print(out)
+        sys.exit(0)
+    last_err = err
+    if attempt == 0:
+        time.sleep(4)  # ZeroGPU allocator warm-up window
+print(f'zero-gpu-bridge: {last_err}', file=sys.stderr)
+sys.exit(1)
 " <<< "$PROMPT")
 RC=$?
 echo "[$(date '+%H:%M:%S')] rc=$RC bytes=${#RESPONSE}" >> "$LOG"
