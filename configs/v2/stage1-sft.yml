@@ -40,11 +40,42 @@ rope_scaling:
   factor: 4.0
   original_max_position_embeddings: 32768
 
-# Datasets — 95K curated (Round 2 + 3)
+# Datasets — 5 sharded public-merged repos populated by dataset-enrich.sh
+# (training-pairs + pairs-A/B/C/D, ~5,800+ commits, millions of {prompt,response}
+# pairs growing every ~25-65s). v2-train was the original "curated" SFT target
+# but build-data-pipeline.sh is not wired into cron yet, so it stayed at 0 files.
+# Until that's wired, train on the live raw-harvest repos so SFT actually has data.
 datasets:
-  - path: axentx/surrogate-1-v2-train       # private aggregated repo
-    type: chat_template
-    field_messages: messages
+  - path: axentx/surrogate-1-training-pairs
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-A
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-B
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-C
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
+  - path: axentx/surrogate-1-pairs-D
+    ds_type: json
+    data_files: ["batches/public-merged/**/*.jsonl"]
+    type: alpaca
+    field_instruction: prompt
+    field_output: response
 
 # Validation split
 val_set_size: 0.02
