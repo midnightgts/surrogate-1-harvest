@@ -13,9 +13,10 @@
 # Run: axolotl train configs/v2/stage1-sdft.yml
 # Compute: ~12-15 hr on Lightning H200 (same envelope as stage1-sft).
 
-base_model: Qwen/Qwen2.5-Coder-32B-Instruct
-# Upgraded 2026-04-30. SDFT recipe applies SAME on 32B; each step
-# self-distills via SDFT. Lightning H200 141GB fits 32B QLoRA + LoRA r=64.
+base_model: Qwen/Qwen2.5-72B-Instruct
+# Upgraded 2026-04-30 (32B → 72B). SDFT recipe applies the same on 72B;
+# each step self-distills via SDFT. Lightning H200 141GB fits 72B QLoRA
+# at seq=16K with comfortable margin (~110 GB peak runtime).
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true
@@ -41,8 +42,8 @@ lora_target_modules:
   - up_proj
   - down_proj
 
-# Context: train at 32K, serve at 128K via YaRN ×4
-sequence_len: 32768
+# Context: train at 16K (72B QLoRA budget), serve at 64K via YaRN ×4
+sequence_len: 16384
 sample_packing: true
 pad_to_sequence_len: true
 rope_theta: 1000000.0
@@ -65,8 +66,8 @@ output_dir: /data/v2/out/stage1-sdft
 # data is closer to current distribution (smaller updates needed).
 num_epochs: 3
 micro_batch_size: 1
-gradient_accumulation_steps: 16
-learning_rate: 7.0e-5                 # was 1e-4 in stage1-sft.yml
+gradient_accumulation_steps: 32         # effective batch = 32 (72B-tuned)
+learning_rate: 5.0e-5                   # 72B + SDFT both want lower (was 7e-5 on 32B)
 lr_scheduler: cosine
 warmup_ratio: 0.03
 optimizer: adamw_torch_fused
@@ -90,7 +91,7 @@ save_total_limit: 3
 logging_steps: 10
 
 # Hub push
-hub_model_id: axentx/surrogate-1-coder-7b-lora-v2-sdft
+hub_model_id: axentx/surrogate-1-72b-lora-v2-sdft
 hub_strategy: every_save
 push_to_hub: true
 hub_private_repo: false
