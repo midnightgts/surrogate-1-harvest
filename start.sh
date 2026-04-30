@@ -479,6 +479,9 @@ while true; do
             --n 1000 --keep-target 200 \
             >> "$LOG_DIR/teachable.log" 2>&1 &
     }
+    # Daily 11:00 UTC: regression test suite (catches breakage post-push)
+    [[ $((M % 1440)) -eq 660 ]] && bash ~/.surrogate/bin/v2/regression-test.sh --quick \
+        >> "$LOG_DIR/regression.log" 2>&1 &
     # Weekly Sun 10:00 UTC: abstract-cot compress reasoning data
     [[ $((M % 10080)) -eq 600 ]] && {
         for f in "$DATA"/v2/verify-traces.jsonl "$DATA"/v2/self-improve/winners-*.jsonl; do

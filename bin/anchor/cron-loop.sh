@@ -133,6 +133,11 @@ while true; do
         done
     }
 
+    # Daily 11:00 UTC: regression test suite — catches push breakage early.
+    # Anchor runs the FULL suite (incl bridge smoke) since it has compute.
+    [[ $((M % 1440)) -eq 660 ]] && bash "${REPO}/bin/v2/regression-test.sh" \
+        >> /data/logs/regression.log 2>&1 &
+
     # ── Round 8 (worker keep-alive — anchor is durable, but defensive) ─
     [[ $((M % 30)) -eq 25 ]] && {
         # If any worker died, respawn (idempotent — checks pgrep first)
