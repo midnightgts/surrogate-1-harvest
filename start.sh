@@ -192,8 +192,11 @@ if [[ -n "$GH_TOKEN" ]]; then
 fi
 
 # ── 4. Redis (TCP only) ─────────────────────────────────────────────────────
+# redis cap tightened on LOW_MEM (was 1gb → 256mb). Coordinator uses
+# SQLite directly; redis is only a soft cache for work-queue priorities.
+REDIS_MAX="${REDIS_MAX:-$([[ "$LOW_MEM" == "1" ]] && echo "256mb" || echo "1gb")}"
 redis-server --daemonize yes --port 6379 --bind 127.0.0.1 \
-    --maxmemory 1gb --maxmemory-policy allkeys-lru
+    --maxmemory "$REDIS_MAX" --maxmemory-policy allkeys-lru
 sleep 1
 redis-cli -h 127.0.0.1 -p 6379 ping >> "$LOG_DIR/redis.log" 2>&1
 
@@ -394,7 +397,10 @@ while true; do
     # Each major task picks a unique M%X==N offset so no two fire together.
     [[ $((M % 2)) -eq 1 ]] && bash ~/.surrogate/bin/surrogate-dev-loop.sh 1 >> "$LOG" 2>&1 &
     [[ $((M % 5)) -eq 2 ]] && bash ~/.surrogate/bin/work-queue-producer.sh >> "$LOG" 2>&1 &
-    [[ $((M % 3)) -eq 1 ]] && bash ~/.surrogate/bin/push-training-to-hf.sh >> "$LOG" 2>&1 &
+    # push-training-to-hf gated by memory (loads big shard into RAM).
+    # Anchor (24GB) takes over when capacity arrives — see anchor cron-loop.
+    [[ $((M % 3)) -eq 1 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \
+        && bash ~/.surrogate/bin/push-training-to-hf.sh >> "$LOG" 2>&1 &
     # auto-orchestrate now runs CONTINUOUSLY (4 parallel workers) — see step 7e below.
     # Cron entry retained for legacy single-fire boost (no harm if continuous already up):
     [[ $((M % 20)) -eq 0 ]] && pgrep -f "auto-orchestrate-continuous" >/dev/null || bash ~/.surrogate/bin/auto-orchestrate-loop.sh >> "$LOG" 2>&1 &
@@ -404,15 +410,16 @@ while true; do
     [[ $((M % 60)) -eq 4 ]] && bash ~/.surrogate/bin/scrape-keyword-tuner.sh >> "$LOG" 2>&1 &
     # Every 6 hours: research-loop (discover new features from competitors/papers)
     [[ $((M % 360)) -eq 30 ]] && bash ~/.surrogate/bin/surrogate-research-loop.sh >> "$LOG" 2>&1 &
-    # Every 60 min: dataset enrich (pulls fresh public datasets, dedups, uploads to HF)
-    # (was 4h — accelerated to drain 96-dataset queue ASAP per user request)
-    [[ $((M % 60)) -eq 5 ]] && bash ~/.surrogate/bin/dataset-enrich.sh >> "$LOG" 2>&1 &
+    # Every 60 min: dataset enrich. Memory-guarded — full HF Hub iter is heavy.
+    [[ $((M % 60)) -eq 5 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \
+        && bash ~/.surrogate/bin/dataset-enrich.sh >> "$LOG" 2>&1 &
     # Every 15 min: self-ingest training-pairs into FTS index (closes self-improvement)
     [[ $((M % 15)) -eq 3 ]] && bash ~/.surrogate/bin/surrogate-self-ingest.sh >> "$LOG" 2>&1 &
     # Every 30 min: build vector embeddings index (RAG semantic search)
     [[ $((M % 30)) -eq 12 ]] && bash ~/.surrogate/bin/rag-vector-builder.sh >> "$LOG" 2>&1 &
     # Every 30 min: synthetic data generation (REWORK→APPROVE DPO + distilabel rewrite)
-    [[ $((M % 30)) -eq 7 ]] && bash ~/.surrogate/bin/synthetic-data-from-rework.sh >> "$LOG" 2>&1 &
+    [[ $((M % 30)) -eq 7 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \
+        && bash ~/.surrogate/bin/synthetic-data-from-rework.sh >> "$LOG" 2>&1 &
     # Daily 04:00 UTC: refresh CVE feed (NVD + CISA KEV) → security-knowledge dataset
     [[ $((M % 1440)) -eq 240 ]] && bash ~/.surrogate/bin/refresh-cve-feed.sh >> "$LOG" 2>&1 &
     # Daily 05:00 UTC: scrape SRE postmortems (danluu list + awesome-tech-postmortems)
@@ -434,7 +441,8 @@ while true; do
     # ── Round 5 (2026-04) sustainability loops ──────────────────────────
     # Every 6 hr (offset 90): self-improve loop — gen problems, judge,
     # winners → training data, losers → reflexion-store.
-    [[ $((M % 360)) -eq 90 ]] && bash ~/.surrogate/bin/v2/self-improve-loop.sh >> "$LOG_DIR/self-improve.log" 2>&1 &
+    [[ $((M % 360)) -eq 90 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \
+        && bash ~/.surrogate/bin/v2/self-improve-loop.sh >> "$LOG_DIR/self-improve.log" 2>&1 &
     # Every 30 min (offset 22): mine new tool-call traces from logs into
     # SFT + DPO data, plus voyager skill candidates.
     [[ $((M % 30)) -eq 22 ]] && python3 ~/.surrogate/bin/v2/tool-trace-collector.py >> "$LOG_DIR/tool-trace.log" 2>&1 &
@@ -463,7 +471,8 @@ while true; do
     [[ $((M % 30)) -eq 9 ]] && bash ~/.surrogate/bin/v2/aggressive-harvester.sh \
         >> "$LOG_DIR/aggressive-harvester.log" 2>&1 &
     # Every 60 min (offset 35): enrich newly-mirrored bulk files
-    [[ $((M % 60)) -eq 35 ]] && bash ~/.surrogate/bin/v2/enrich-pipeline.sh \
+    [[ $((M % 60)) -eq 35 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \
+        && bash ~/.surrogate/bin/v2/enrich-pipeline.sh \
         >> "$LOG_DIR/enrich-pipeline.log" 2>&1 &
     # Every 30 min (offset 25): spawn extra streaming worker if pool empty
     [[ $((M % 30)) -eq 25 ]] && {
