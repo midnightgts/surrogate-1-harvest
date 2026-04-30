@@ -316,15 +316,25 @@ echo "[$(date +%H:%M:%S)] gh-actions-ticker started (60s tick, dispatches arkash
 # Each cycle fires 3 prompts at every active provider in parallel, writes
 # {prompt, response} pairs to training-pairs.jsonl. Combined free-tier
 # budget: ~7000+ pairs/day. Skips any provider whose key env is not set.
-nohup python3 ~/.surrogate/bin/llm-burst-generator.py > "$LOG_DIR/llm-burst-generator.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] llm-burst-generator started (8 LLM APIs in parallel, ~7K synthetic pairs/day)" >> "$LOG_DIR/boot.log"
+if [[ "$LOW_MEM" != "1" ]]; then
+    nohup python3 ~/.surrogate/bin/llm-burst-generator.py > "$LOG_DIR/llm-burst-generator.log" 2>&1 &
+    echo "[$(date +%H:%M:%S)] llm-burst-generator started (8 LLM APIs in parallel, ~7K synthetic pairs/day)" >> "$LOG_DIR/boot.log"
+else
+    echo "[$(date +%H:%M:%S)] ⚠ llm-burst-generator SKIPPED (LOW_MEM); ZeroGPU synth-puller covers" >> "$LOG_DIR/boot.log"
+fi
+sleep 3   # Stagger spawns — avoid memory burst at boot
 
 # ── 7f. PARALLEL BULK INGEST (slug-hash sharded; 6 shards on cpu-basic) ─────
 # Was 16 shards but caused 'Memory limit exceeded (16Gi)' OOM. Each shard
 # peaks ~1 GB while streaming via 'datasets' lib. Watchdog above provides
 # a second safety net if peak still spikes.
-nohup bash ~/.surrogate/bin/bulk-ingest-parallel.sh > "$LOG_DIR/bulk-ingest-parallel.log" 2>&1 &
-echo "[$(date +%H:%M:%S)] bulk-ingest-parallel started (6 shards, 293M total cap)" >> "$LOG_DIR/boot.log"
+if [[ "$LOW_MEM" != "1" ]]; then
+    nohup bash ~/.surrogate/bin/bulk-ingest-parallel.sh > "$LOG_DIR/bulk-ingest-parallel.log" 2>&1 &
+    echo "[$(date +%H:%M:%S)] bulk-ingest-parallel started (6 shards, 293M total cap)" >> "$LOG_DIR/boot.log"
+else
+    echo "[$(date +%H:%M:%S)] ⚠ bulk-ingest-parallel SKIPPED (LOW_MEM); streaming-mirror-worker covers" >> "$LOG_DIR/boot.log"
+fi
+sleep 3
 
 # ── 7g. PARQUET-DIRECT INGEST (skip 'datasets' library overhead, 5-10× faster) ──
 # Downloads parquet shards directly via HF datasets-server API + pyarrow filter.
@@ -379,6 +389,15 @@ if ! pgrep -f "continuous-discoverer.sh" >/dev/null; then
     echo "[$(date +%H:%M:%S)] continuous-discoverer started (HF + arxiv + SE + GH, ~5min cycle)" >> "$LOG_DIR/boot.log"
 fi
 
+# ── Auto-startup-loop: 45 personae × 9 LoRA clusters × auto-commit + auto-push ─
+# CEO/CTO/CMO/CFO/COO/PM/UX/Designer/SRE/DevOps/Marketing/SDR/AE/Growth/CS/Legal/HR/etc.
+# 1 role per 15-min cycle; chained roles fire downstream automatically.
+if ! pgrep -f "auto-startup-loop.sh" >/dev/null; then
+    nohup bash ~/.surrogate/bin/v2/auto-startup-loop.sh \
+        > "$LOG_DIR/auto-startup-loop.log" 2>&1 &
+    echo "[$(date +%H:%M:%S)] auto-startup-loop started (45 personae cycle 15min, chains, auto-commit)" >> "$LOG_DIR/boot.log"
+fi
+
 # ── 7d. Train-ready pusher — disabled at boot for now. Caused Space
 #       RUNTIME_ERROR on first deployment (2026-04-29). Script kept at
 #       bin/train-ready-pusher.sh; launch manually after Space proves stable:
@@ -399,6 +418,9 @@ while true; do
     [[ $((M % 5)) -eq 2 ]] && bash ~/.surrogate/bin/work-queue-producer.sh >> "$LOG" 2>&1 &
     # Auto-scaler — spawn/kill workers based on free memory tier (burst-but-don't-die)
     [[ $((M % 5)) -eq 4 ]] && bash ~/.surrogate/bin/v2/auto-scaler.sh >> "$LOG" 2>&1 &
+    # synth-puller — hit surrogate1 ZeroGPU /api/synth_batch every 5 min
+    # Drains free PRO 25K min/mo into Magpie-style training pairs (16 domains rotate).
+    [[ $((M % 5)) -eq 3 ]] && bash ~/.surrogate/bin/v2/synth-puller.sh >> "$LOG" 2>&1 &
     # push-training-to-hf gated by memory (loads big shard into RAM).
     # Anchor (24GB) takes over when capacity arrives — see anchor cron-loop.
     [[ $((M % 3)) -eq 1 ]] && bash ~/.surrogate/bin/v2/memory-guard.sh \

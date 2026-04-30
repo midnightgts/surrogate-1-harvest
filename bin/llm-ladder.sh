@@ -24,7 +24,10 @@
 set -u
 
 LADDER="${SURROGATE_LADDER:-zero-gpu,cerebras,groq,hf-inference,gemini,openrouter,chutes,nvidia,ollama}"
-BIN="$HOME/.surrogate/bin"
+# Prefer the bridge dir we live in (sibling files); fall back to ~/.surrogate/bin
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BIN="${SURROGATE_BIN:-$SCRIPT_DIR}"
+[[ ! -x "$BIN/cerebras-bridge.sh" ]] && BIN="$HOME/.surrogate/bin"
 LOG="$HOME/.surrogate/logs/llm-ladder.log"
 mkdir -p "$(dirname "$LOG")"
 

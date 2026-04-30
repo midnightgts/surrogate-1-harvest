@@ -2,7 +2,11 @@
 # Run: axolotl train configs/v2/stage1-sft.yml
 # Compute: ~12-15 hr on Lightning H200 (or ~24 hr on L40S 48GB)
 
-base_model: Qwen/Qwen2.5-Coder-7B-Instruct
+base_model: Qwen/Qwen2.5-Coder-32B-Instruct
+# Upgraded 2026-04-30 (was 7B). 32B QLoRA on Lightning H200 141GB ≈ 76GB
+# total, comfortable. Training time ~24-30h on 1 H200. Free 4hr × 13/mo
+# = 52 hr → 6-8 runs cover full SFT (resume_from_checkpoint built-in).
+# v1 LoRA (7B) is incompatible — v2 LoRA from this stage is 32B-native.
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true

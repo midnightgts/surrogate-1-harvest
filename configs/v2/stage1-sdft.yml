@@ -13,7 +13,9 @@
 # Run: axolotl train configs/v2/stage1-sdft.yml
 # Compute: ~12-15 hr on Lightning H200 (same envelope as stage1-sft).
 
-base_model: Qwen/Qwen2.5-Coder-7B-Instruct
+base_model: Qwen/Qwen2.5-Coder-32B-Instruct
+# Upgraded 2026-04-30. SDFT recipe applies SAME on 32B; each step
+# self-distills via SDFT. Lightning H200 141GB fits 32B QLoRA + LoRA r=64.
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: true

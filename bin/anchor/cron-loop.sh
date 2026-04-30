@@ -65,6 +65,14 @@ if ! pgrep -f "continuous-discoverer.sh" >/dev/null; then
     echo "[$(date '+%H:%M:%S')] continuous-discoverer started (anchor, never exits)" >> "$LOG"
 fi
 
+# auto-startup-loop — all 45 personae × auto-commit + auto-push (anchor copy)
+if [[ -x "${REPO}/bin/v2/auto-startup-loop.sh" ]] \
+   && ! pgrep -f "auto-startup-loop.sh" >/dev/null; then
+    nohup bash "${REPO}/bin/v2/auto-startup-loop.sh" \
+        > "/data/logs/auto-startup-loop.log" 2>&1 &
+    echo "[$(date +%H:%M:%S)] auto-startup-loop started (45 personae 15min cycle)" >> "$LOG"
+fi
+
 # auto-orchestrate-continuous — 4 parallel dev-chain workers on axentx repos.
 # (Disabled on HF Space cpu-basic LOW_MEM; anchor 24GB ARM runs it just fine.)
 if [[ -x "${REPO}/bin/auto-orchestrate-continuous.sh" ]] \
