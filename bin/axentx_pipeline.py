@@ -57,14 +57,18 @@ def log(role: str, msg: str) -> None:
 def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
              timeout: int = 30) -> str:
     """Cerebras → Groq → OpenRouter fallback chain."""
+    # Probed live 2026-05-01: only these model names work for our keys.
+    # Cerebras llama-3.3-70b is gated; only llama3.1-8b is free-tier visible.
+    # Groq llama-3.3-70b-versatile is best-quality + always-on for our token.
+    # OpenRouter free endpoints all 404/429 — dropped from chain.
     chains = [
-        ("Cerebras", "https://api.cerebras.ai/v1/chat/completions",
-         os.environ.get("CEREBRAS_API_KEY"), "llama-3.3-70b"),
         ("Groq", "https://api.groq.com/openai/v1/chat/completions",
          os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
+        ("Cerebras", "https://api.cerebras.ai/v1/chat/completions",
+         os.environ.get("CEREBRAS_API_KEY"), "llama3.1-8b"),
         ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions",
          os.environ.get("OPENROUTER_API_KEY"),
-         "deepseek/deepseek-chat-v3.1:free"),
+         "meta-llama/llama-3.3-70b-instruct:free"),
     ]
     messages = []
     if system:
