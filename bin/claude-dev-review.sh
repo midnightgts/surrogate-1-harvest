@@ -44,7 +44,7 @@ PROMPT_FILE=$(mktemp)
 } > "$PROMPT_FILE"
 
 # Dev review = review category → Sonnet (verifies dev claims vs reality)
-REVIEW=$(cat "$PROMPT_FILE" | ~/.claude/bin/claude-bridge.sh --model sonnet --timeout 180 2>>"$LOG")
+REVIEW=$(cat "$PROMPT_FILE" | /opt/surrogate-1-harvest/bin/claude-bridge.sh --model sonnet --timeout 180 2>>"$LOG")
 RC=$?
 rm -f "$PROMPT_FILE"
 

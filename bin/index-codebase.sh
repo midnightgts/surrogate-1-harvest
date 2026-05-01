@@ -251,4 +251,4 @@ print(f'Wrote {written} project metadata files to {dest}')
 PY
 
 # Trigger graph sync
-[ -x "$HOME/.claude/bin/graph-sync.sh" ] && ("$HOME/.claude/bin/graph-sync.sh" > /dev/null 2>&1 &) || true
+[ -x "/opt/surrogate-1-harvest/bin/graph-sync.sh" ] && ("/opt/surrogate-1-harvest/bin/graph-sync.sh" > /dev/null 2>&1 &) || true

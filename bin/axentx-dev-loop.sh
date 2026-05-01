@@ -50,8 +50,8 @@ CYCLE_ID="$(date +%Y%m%d_%H%M)_${PROJECT}_${FOCUS}"
 
 echo "[$(date '+%Y-%m-%d %H:%M')] CYCLE=$CYCLE_ID PROJECT=$PROJECT FOCUS=$FOCUS (slot $next/14)" | tee -a "$LOG"
 
-if [[ -x ~/.claude/bin/graph-sync.sh ]]; then
-    ~/.claude/bin/graph-sync.sh >> "$LOG.graph" 2>&1 &
+if [[ -x /opt/surrogate-1-harvest/bin/graph-sync.sh ]]; then
+    /opt/surrogate-1-harvest/bin/graph-sync.sh >> "$LOG.graph" 2>&1 &
 fi
 
 cat <<EOF

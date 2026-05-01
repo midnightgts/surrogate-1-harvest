@@ -61,7 +61,7 @@ for TOPIC in "${TOPICS[@]}"; do
         git clone --depth 1 --filter=blob:limit=100k "https://github.com/$REPO.git" "$DIR" 2>>"$LOG" || { echo "$REPO" >> "$SEEN"; continue; }
         
         # Ingest — only *.md, *.ts/*.tsx, *.py, examples
-        python3 ~/.claude/bin/ingest-training-data.py \
+        python3 /opt/surrogate-1-harvest/bin/ingest-training-data.py \
             --source "github-dev" --project "$REPO" --root "$DIR" \
             --patterns "*.md,*.mdx,README*,*.ts,*.tsx,*.py,*.go,*.rs,docs/**" \
             --max-file-size 30000 --max-files 50 >>"$LOG" 2>&1 || true

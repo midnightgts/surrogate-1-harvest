@@ -66,7 +66,7 @@ END
 OUT="$SHARED/backlog/${RUN_ID}_${PROJECT}_brd.md"
 
 echo "[$(date +%H:%M)] granite-ba $PROJECT: $ITEM" >> "$LOG"
-RESPONSE=$(echo "$PROMPT" | ~/.claude/bin/granite-bridge.sh --model qwen-coder --max-tokens 1800 2>>"$LOG")
+RESPONSE=$(echo "$PROMPT" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --model qwen-coder --max-tokens 1800 2>>"$LOG")
 [[ -z "$RESPONSE" ]] && exit 1
 
 {

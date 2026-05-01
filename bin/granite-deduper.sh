@@ -35,7 +35,7 @@ HDR
 
 echo "[$(date +%H:%M)] deduping $COUNT items" >> "$LOG"
 
-RESPONSE=$(printf '%s\n%s' "$PROMPT" "$ITEMS" | ~/.claude/bin/granite-bridge.sh --model qwen-coder --max-tokens 1200 2>>"$LOG")
+RESPONSE=$(printf '%s\n%s' "$PROMPT" "$ITEMS" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --model qwen-coder --max-tokens 1200 2>>"$LOG")
 RC=$?
 [[ $RC -ne 0 ]] && exit $RC
 

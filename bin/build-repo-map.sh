@@ -1,3 +1,3 @@
 #!/bin/bash
 # wrapper — hermes-cli refuses symlinks as path-traversal, so exec the real script
-exec "/Users/Ashira/.claude/bin/build-repo-map.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/build-repo-map.sh" "$@"

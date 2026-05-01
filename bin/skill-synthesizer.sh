@@ -43,7 +43,7 @@ INPUT:
 $(cat "$INPUT" | head -500)"
 
 echo "[$(date +%H:%M)] analyzing for new skills" >> "$LOG"
-RESPONSE=$(echo "$PROMPT" | ~/.claude/bin/claude-bridge.sh --model opus --force --timeout 120 2>>"$LOG")
+RESPONSE=$(echo "$PROMPT" | /opt/surrogate-1-harvest/bin/claude-bridge.sh --model opus --force --timeout 120 2>>"$LOG")
 [[ -z "$RESPONSE" ]] && { echo "  bridge failed" >> "$LOG"; rm "$INPUT"; exit 1; }
 
 # Parse JSON lines — create each skill
@@ -84,9 +84,9 @@ created_at: {datetime.datetime.now().isoformat()}
 
         # SECURITY GATE — port from FrancyJGLisboa/agent-skill-creator
         import subprocess
-        sec = subprocess.run(['/Users/Ashira/.claude/bin/skill-security-scan.sh', staging_path],
+        sec = subprocess.run(['/opt/surrogate-1-harvest/bin/skill-security-scan.sh', staging_path],
                             capture_output=True, timeout=20)
-        spec = subprocess.run(['/Users/Ashira/.claude/bin/skill-spec-validate.sh', staging_path],
+        spec = subprocess.run(['/opt/surrogate-1-harvest/bin/skill-spec-validate.sh', staging_path],
                              capture_output=True, timeout=20)
 
         if sec.returncode != 0:

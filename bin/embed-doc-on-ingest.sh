@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$HOME/.claude/bin/embed-doc-on-ingest.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/embed-doc-on-ingest.sh" "$@"

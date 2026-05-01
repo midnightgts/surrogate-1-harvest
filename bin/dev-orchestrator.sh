@@ -8,7 +8,7 @@ RUN_ID="$(date +%Y%m%d_%H%M)"
 LOG="$HOME/.claude/logs/dev-orchestrator.log"
 mkdir -p "$(dirname "$LOG")"
 
-CTX=$(bash ~/.hermes/scripts/pipeline-helper.sh dev)
+CTX=$(bash /opt/surrogate-1-harvest/bin/pipeline-helper.sh dev)
 PROJECT=$(echo "$CTX" | awk -F: '/^PROJECT:/ {gsub(/^ +| +$/,"",$2); print $2; exit}')
 PROJECT_PATH=$(echo "$CTX" | awk -F: '/^PROJECT_PATH:/ {gsub(/^ +| +$/,"",$2); print $2; exit}')
 [[ -z "$PROJECT" ]] && { echo "no project"; exit 1; }
@@ -46,11 +46,11 @@ E10_PROMPT="You are E10-AI engineer. Write a 30-line design doc for AI/ML enhanc
 Markdown only. Sections: Technique, Data, Model, Integration, Effort. No code."
 
 # Parallel execution — Groq fast for code, granite for design doc
-(echo "$E1_PROMPT" | ~/.claude/bin/groq-bridge.sh --model fast --max-tokens 2500 > /tmp/dev-orch/e1.sh 2>/tmp/dev-orch/e1.err) &
+(echo "$E1_PROMPT" | /opt/surrogate-1-harvest/bin/groq-bridge.sh --model fast --max-tokens 2500 > /tmp/dev-orch/e1.sh 2>/tmp/dev-orch/e1.err) &
 E1_PID=$!
-(echo "$E2_PROMPT" | ~/.claude/bin/groq-bridge.sh --model fast --max-tokens 1800 > /tmp/dev-orch/e2.sh 2>/tmp/dev-orch/e2.err) &
+(echo "$E2_PROMPT" | /opt/surrogate-1-harvest/bin/groq-bridge.sh --model fast --max-tokens 1800 > /tmp/dev-orch/e2.sh 2>/tmp/dev-orch/e2.err) &
 E2_PID=$!
-(echo "$E10_PROMPT" | ~/.claude/bin/granite-bridge.sh --max-tokens 1200 > /tmp/dev-orch/e10.md 2>/tmp/dev-orch/e10.err) &
+(echo "$E10_PROMPT" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --max-tokens 1200 > /tmp/dev-orch/e10.md 2>/tmp/dev-orch/e10.err) &
 E10_PID=$!
 mkdir -p /tmp/dev-orch
 

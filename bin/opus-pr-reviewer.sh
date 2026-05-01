@@ -196,7 +196,7 @@ EOF
         echo "[$(date '+%H:%M:%S')] $REPO#$PR_NUM: sending to Opus ($TOTAL_LOC LOC)" >> "$LOG"
 
         # Call Opus 4.7 --force (important decision — use heavyweight)
-        REVIEW=$(/usr/bin/cat "$PROMPT_FILE" | "$HOME/.claude/bin/claude-bridge.sh" --model opus --force --timeout 300 2>>"$LOG")
+        REVIEW=$(/usr/bin/cat "$PROMPT_FILE" | "/opt/surrogate-1-harvest/bin/claude-bridge.sh" --model opus --force --timeout 300 2>>"$LOG")
         /bin/rm -f "$PROMPT_FILE"
 
         [[ -z "$REVIEW" ]] && { echo "[$(date '+%H:%M:%S')] $REPO#$PR_NUM: bridge failed" >> "$LOG"; continue; }

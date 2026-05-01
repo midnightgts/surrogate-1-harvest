@@ -12,11 +12,11 @@ Usage:
 import sys, json, sqlite3, argparse, subprocess, urllib.request, re
 from pathlib import Path
 
-DB = str(Path.home() / ".surrogate/index.db")
+DB = str(Path.home() / ".claude/index.db")
 OLLAMA = "http://localhost:11434/api/chat"
 DEFAULT_MODEL = "granite4:7b-a1b-h"
 
-AXENTX = Path.home() / "axentx"
+AXENTX = Path("/Users/Ashira/axentx")
 PROJECTS = ["Costinel", "Vanguard", "arkship", "surrogate", "workio"]
 
 

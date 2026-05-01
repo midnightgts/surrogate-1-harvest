@@ -41,7 +41,7 @@ PROMPT="You are the ORCHESTRATOR agent. Read the team brief below and execute th
 === BRIEF ===
 $BRIEF_CONTENT"
 
-RESULT=$(/usr/bin/printf '%s' "$PROMPT" | /bin/bash "$HOME/.claude/bin/claude-bridge.sh" --model auto --timeout 1500 --allow-writes 2>&1)
+RESULT=$(/usr/bin/printf '%s' "$PROMPT" | /bin/bash "/opt/surrogate-1-harvest/bin/claude-bridge.sh" --model auto --timeout 1500 --allow-writes 2>&1)
 RC=$?
 
 if [[ $RC -ne 0 ]] || [[ -z "$RESULT" ]]; then

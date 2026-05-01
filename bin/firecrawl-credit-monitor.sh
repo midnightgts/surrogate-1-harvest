@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$HOME/.claude/bin/firecrawl-credit-monitor.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/firecrawl-credit-monitor.sh" "$@"

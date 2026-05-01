@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$HOME/.claude/bin/scrape-anthropic-cookbook.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/scrape-anthropic-cookbook.sh" "$@"

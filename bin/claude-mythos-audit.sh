@@ -94,7 +94,7 @@ esac
 [[ -z "$RECENT_WORK" ]] && { echo "no recent work for $DOMAIN" >> "$LOG"; exit 0; }
 
 # Pull mythos-tagged context from RAG
-MYTHOS_CTX=$(python3 ~/.claude/bin/ask-sqlite.py "$DOMAIN best practices patterns mastery" --source "mythos-$DOMAIN" 2>/dev/null | head -30)
+MYTHOS_CTX=$(python3 /opt/surrogate-1-harvest/bin/ask-sqlite.py "$DOMAIN best practices patterns mastery" --source "mythos-$DOMAIN" 2>/dev/null | head -30)
 
 PROMPT="$PERSONA
 
@@ -126,7 +126,7 @@ If any pattern is reusable: emit skill specs
 Be ruthlessly honest. Cite specific anti-patterns by name. Reference master sources (Fowler refactoring, Google SRE book, OWASP cheat sheets, Anthropic cookbook, etc.)"
 
 echo "[$(date +%H:%M)] mythos-audit $DOMAIN with Opus 4.7" >> "$LOG"
-RESPONSE=$(echo "$PROMPT" | ~/.claude/bin/claude-bridge.sh --model opus --force --timeout 300 2>>"$LOG")
+RESPONSE=$(echo "$PROMPT" | /opt/surrogate-1-harvest/bin/claude-bridge.sh --model opus --force --timeout 300 2>>"$LOG")
 [[ -z "$RESPONSE" ]] && { echo "FAIL" >> "$LOG"; exit 1; }
 
 {

@@ -7,7 +7,7 @@ LOG="$HOME/.claude/logs/granite-business.log"
 mkdir -p "$(dirname "$LOG")"
 
 # Pick project from rotation
-PROJECT=$(bash ~/.hermes/scripts/pipeline-helper.sh bd 2>/dev/null | awk -F: '/^PROJECT:/ {gsub(/^ +| +$/,"",$2); print $2; exit}')
+PROJECT=$(bash /opt/surrogate-1-harvest/bin/pipeline-helper.sh bd 2>/dev/null | awk -F: '/^PROJECT:/ {gsub(/^ +| +$/,"",$2); print $2; exit}')
 [[ -z "$PROJECT" ]] && PROJECT="Costinel"
 
 # Pull RAG context relevant to the project domain
@@ -20,7 +20,7 @@ case "$PROJECT" in
     *)         DOMAIN_QUERY="cloud platform DevOps" ;;
 esac
 
-RAG_CONTEXT=$(python3 ~/.claude/bin/ask-sqlite.py "$DOMAIN_QUERY 2026 market trend competitor" --max-docs 8 --no-llm 2>/dev/null | head -200)
+RAG_CONTEXT=$(python3 /opt/surrogate-1-harvest/bin/ask-sqlite.py "$DOMAIN_QUERY 2026 market trend competitor" --max-docs 8 --no-llm 2>/dev/null | head -200)
 
 PROMPT=$(cat <<END
 You are a Business Research analyst for axentx. Project: $PROJECT
@@ -52,7 +52,7 @@ END
 OUT="$SHARED/decisions/${RUN_ID}_${PROJECT}_bd-research.md"
 
 echo "[$(date +%H:%M)] granite-bd $PROJECT" >> "$LOG"
-RESPONSE=$(echo "$PROMPT" | ~/.claude/bin/granite-bridge.sh --model qwen-coder --max-tokens 1500 2>>"$LOG")
+RESPONSE=$(echo "$PROMPT" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --model qwen-coder --max-tokens 1500 2>>"$LOG")
 [[ -z "$RESPONSE" ]] && { echo "[$(date +%H:%M)] FAIL bd" >> "$LOG"; exit 1; }
 
 {

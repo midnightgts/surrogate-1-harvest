@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$HOME/.claude/bin/semantic-rag-dedup.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/semantic-rag-dedup.sh" "$@"

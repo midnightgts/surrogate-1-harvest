@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 # wrapper — hermes-cli refuses symlinks as path-traversal, so exec the real script
-exec /Users/Ashira/.claude/bin/budget-tracker.sh "$@"
+exec /opt/surrogate-1-harvest/bin/budget-tracker.sh "$@"

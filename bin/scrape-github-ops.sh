@@ -88,7 +88,7 @@ for r in d.get('items', [])[:30]:
             --filter=blob:limit=1m \
             "https://github.com/$FULL_NAME.git" "$CLONE_DIR" >>"$LOG" 2>&1; then
             INDEX_ROOT="$CLONE_DIR" REPO_NAME="github:$FULL_NAME" TOPIC="$TOPIC" \
-                ~/.claude/bin/with-chroma-lock.sh ~/.claude/venv/bin/python ~/.claude/bin/index-repo-public.py >>"$LOG" 2>&1
+                /opt/surrogate-1-harvest/bin/with-chroma-lock.sh ~/.claude/venv/bin/python /opt/surrogate-1-harvest/bin/index-repo-public.py >>"$LOG" 2>&1
             echo "$FULL_NAME" >> "$SEEN"
             COUNT=$((COUNT+1))
         else

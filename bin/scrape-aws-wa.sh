@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$HOME/.claude/bin/scrape-aws-wa.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/scrape-aws-wa.sh" "$@"

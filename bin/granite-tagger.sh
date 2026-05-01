@@ -34,7 +34,7 @@ HDR
 
 echo "[$(date +%H:%M)] tagging $(echo "$UNTAGGED" | wc -l | tr -d ' ') items" >> "$LOG"
 
-RESPONSE=$(printf '%s\n%s' "$PROMPT" "$UNTAGGED" | ~/.claude/bin/granite-bridge.sh --model granite4 --max-tokens 1200 2>>"$LOG")
+RESPONSE=$(printf '%s\n%s' "$PROMPT" "$UNTAGGED" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --model granite4 --max-tokens 1200 2>>"$LOG")
 RC=$?
 [[ $RC -ne 0 ]] && exit $RC
 

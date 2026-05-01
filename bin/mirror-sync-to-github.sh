@@ -30,12 +30,12 @@ cd "$MIRROR" || exit 1
     --exclude='index.db' --exclude='distillation-dataset.jsonl' \
     --exclude='.DS_Store' --exclude='*.bak' --exclude='*.bak.*' \
     --exclude='__pycache__/' --exclude='*.pyc' \
-    "$HOME/.claude/bin/" "$MIRROR/claude-bin/"
+    "/opt/surrogate-1-harvest/bin/" "$MIRROR/claude-bin/"
 
 /usr/bin/rsync -a --delete \
     --exclude='logs/' --exclude='*.log' \
     --exclude='*.env*' \
-    "$HOME/.hermes/scripts/" "$MIRROR/hermes-scripts/"
+    "/opt/surrogate-1-harvest/bin/" "$MIRROR/hermes-scripts/"
 
 /usr/bin/rsync -a --delete \
     "$HOME/.hermes/config/" "$MIRROR/hermes-config/"
@@ -53,8 +53,8 @@ if [[ ! -f "$MIRROR/README.md" ]]; then
 # hermes-toolbelt — Ashira's autonomous agent system
 
 Auto-mirrored every 15 min from:
-- `~/.claude/bin/` → `claude-bin/` (bridges, workers, ceremony agents)
-- `~/.hermes/scripts/` → `hermes-scripts/` (orchestrators)
+- `/opt/surrogate-1-harvest/bin/` → `claude-bin/` (bridges, workers, ceremony agents)
+- `/opt/surrogate-1-harvest/bin/` → `hermes-scripts/` (orchestrators)
 - `~/.hermes/config/` → `hermes-config/` (agent definitions, domain catalogs)
 - `~/.hermes/cron/` → `hermes-cron/` (123+ cron job definitions)
 - `~/.claude/agents/` → `agents/` (architect, dev, ops, qa, reviewer, orchestrator)

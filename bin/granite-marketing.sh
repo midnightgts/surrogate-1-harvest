@@ -6,7 +6,7 @@ RUN_ID="$(date +%Y%m%d_%H%M)"
 LOG="$HOME/.claude/logs/granite-marketing.log"
 mkdir -p "$(dirname "$LOG")"
 
-PROJECT=$(bash ~/.hermes/scripts/pipeline-helper.sh marketing 2>/dev/null | awk -F: '/^PROJECT:/ {gsub(/^ +| +$/,"",$2); print $2; exit}')
+PROJECT=$(bash /opt/surrogate-1-harvest/bin/pipeline-helper.sh marketing 2>/dev/null | awk -F: '/^PROJECT:/ {gsub(/^ +| +$/,"",$2); print $2; exit}')
 [[ -z "$PROJECT" ]] && PROJECT="Costinel"
 
 PROJECT_PATH="$HOME/axentx/$PROJECT"
@@ -43,7 +43,7 @@ END
 OUT="$SHARED/decisions/${RUN_ID}_${PROJECT}_marketing.md"
 
 echo "[$(date +%H:%M)] granite-marketing $PROJECT" >> "$LOG"
-RESPONSE=$(echo "$PROMPT" | ~/.claude/bin/granite-bridge.sh --model qwen-coder --max-tokens 1200 2>>"$LOG")
+RESPONSE=$(echo "$PROMPT" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --model qwen-coder --max-tokens 1200 2>>"$LOG")
 [[ -z "$RESPONSE" ]] && exit 1
 
 {

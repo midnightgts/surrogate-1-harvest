@@ -53,7 +53,7 @@ print(f"[{datetime.datetime.now().strftime('%H:%M')}] indexed {added} pipeline d
 PY
 
 # Auto-commit user-code writes
-bash $HOME/.claude/bin/axentx-auto-commit.sh >> "$LOG" 2>&1 || true
+bash /opt/surrogate-1-harvest/bin/axentx-auto-commit.sh >> "$LOG" 2>&1 || true
 
 # Rotate log if too big
 [[ -f "$LOG" ]] && LINES=$(wc -l < "$LOG") && [[ $LINES -gt 10000 ]] && {
@@ -90,10 +90,10 @@ PY
 # Auto-ingest scraped JSONL files from today into SQLite FTS
 TODAY_JSONL=$HOME/axentx/surrogate/data/training-jsonl/$(date +%Y-%m-%d).jsonl
 if [[ -f "$TODAY_JSONL" ]]; then
-    python3 $HOME/.claude/bin/ingest-jsonl-to-sqlite.py "$TODAY_JSONL" >> "$LOG" 2>&1 || true
+    python3 /opt/surrogate-1-harvest/bin/ingest-jsonl-to-sqlite.py "$TODAY_JSONL" >> "$LOG" 2>&1 || true
 fi
 # Also pick up raw scrape output (rss, arxiv, hf-papers, github)
 for src_dir in rss arxiv hf-papers github reddit; do
     TODAY_SRC=$HOME/axentx/surrogate/data/raw/$src_dir/$(date +%Y-%m-%d).jsonl
-    [[ -f "$TODAY_SRC" ]] && python3 $HOME/.claude/bin/ingest-jsonl-to-sqlite.py "$TODAY_SRC" >> "$LOG" 2>&1 || true
+    [[ -f "$TODAY_SRC" ]] && python3 /opt/surrogate-1-harvest/bin/ingest-jsonl-to-sqlite.py "$TODAY_SRC" >> "$LOG" 2>&1 || true
 done

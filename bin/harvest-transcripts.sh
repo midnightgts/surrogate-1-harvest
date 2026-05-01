@@ -123,4 +123,4 @@ print(f'Tracking {len(new_seen)} total UUIDs (last 50k kept)')
 PY
 
 # Trigger graph sync
-[ -x "$HOME/.claude/bin/graph-sync.sh" ] && ("$HOME/.claude/bin/graph-sync.sh" > /dev/null 2>&1 &) || true
+[ -x "/opt/surrogate-1-harvest/bin/graph-sync.sh" ] && ("/opt/surrogate-1-harvest/bin/graph-sync.sh" > /dev/null 2>&1 &) || true

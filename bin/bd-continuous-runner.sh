@@ -21,7 +21,7 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 log "=== BD continuous cycle start ==="
 
 # ── TURN 1: pick theme ──
-PICK_OUT=$(/bin/bash "$HOME/.claude/bin/bd-theme-picker.sh" 2>&1)
+PICK_OUT=$(/bin/bash "/opt/surrogate-1-harvest/bin/bd-theme-picker.sh" 2>&1)
 log "picker: $PICK_OUT"
 
 if [[ "$PICK_OUT" == no_theme:* ]] || [[ -z "$PICK_OUT" ]]; then
@@ -51,19 +51,19 @@ $BRIEF_CONTENT"
 # Sonnet (night window → opus) via Max plan. Timeout 15 min.
 # Tools allowed: Read/Write/WebSearch/WebFetch/Bash — everything needed for spec writing.
 # Need write/bash tools to create specs + append priority.json
-RESULT=$(/usr/bin/printf '%s' "$PROMPT" | /bin/bash "$HOME/.claude/bin/claude-bridge.sh" --model auto --timeout 1200 --allow-writes 2>&1)
+RESULT=$(/usr/bin/printf '%s' "$PROMPT" | /bin/bash "/opt/surrogate-1-harvest/bin/claude-bridge.sh" --model auto --timeout 1200 --allow-writes 2>&1)
 RC=$?
 
 if [[ $RC -ne 0 ]] || [[ -z "$RESULT" ]]; then
     log "claude-bridge auto failed rc=$RC — trying sonnet explicit"
-    RESULT=$(/usr/bin/printf '%s' "$PROMPT" | /bin/bash "$HOME/.claude/bin/claude-bridge.sh" --model sonnet --timeout 1200 --allow-writes 2>&1)
+    RESULT=$(/usr/bin/printf '%s' "$PROMPT" | /bin/bash "/opt/surrogate-1-harvest/bin/claude-bridge.sh" --model sonnet --timeout 1200 --allow-writes 2>&1)
     RC=$?
 fi
 
 if [[ $RC -ne 0 ]]; then
     log "ERROR: bridge failed twice rc=$RC — abandoning cycle (theme will be retried by post-research marking)"
     echo "[$(date)] result: $RESULT" >> "$LOG"
-    /bin/bash "$HOME/.claude/bin/bd-post-research.sh" >> "$LOG" 2>&1
+    /bin/bash "/opt/surrogate-1-harvest/bin/bd-post-research.sh" >> "$LOG" 2>&1
     exit $RC
 fi
 
@@ -72,7 +72,7 @@ echo "$RESULT" | /usr/bin/head -c 2000 >> "$LOG"
 echo "" >> "$LOG"
 
 # ── TURN 3: post-research ──
-POST_OUT=$(/bin/bash "$HOME/.claude/bin/bd-post-research.sh" 2>&1)
+POST_OUT=$(/bin/bash "/opt/surrogate-1-harvest/bin/bd-post-research.sh" 2>&1)
 log "post-research: $POST_OUT"
 echo "$POST_OUT"   # stdout for cron delivery
 

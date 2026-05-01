@@ -32,7 +32,7 @@ done
 
 echo "[$(date +%H:%M)] summarizing $(echo "$RECENT" | wc -l | tr -d ' ') files" >> "$LOG"
 
-RESPONSE=$(printf '%s\n%s' "$PROMPT" "$CONTENT" | ~/.claude/bin/granite-bridge.sh --model granite4 --max-tokens 1500 2>>"$LOG")
+RESPONSE=$(printf '%s\n%s' "$PROMPT" "$CONTENT" | /opt/surrogate-1-harvest/bin/granite-bridge.sh --model granite4 --max-tokens 1500 2>>"$LOG")
 RC=$?
 [[ $RC -ne 0 || -z "$RESPONSE" ]] && { echo "[$(date +%H:%M)] FAIL" >> "$LOG"; exit $RC; }
 

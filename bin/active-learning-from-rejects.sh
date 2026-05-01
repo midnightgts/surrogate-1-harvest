@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-bash "$HOME/.claude/bin/active-learning-from-rejects.sh" "$@"
+bash "/opt/surrogate-1-harvest/bin/active-learning-from-rejects.sh" "$@"

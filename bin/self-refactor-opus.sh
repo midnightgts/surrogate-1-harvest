@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "$HOME/.claude/bin/self-refactor-opus.sh" "$@"
+exec "/opt/surrogate-1-harvest/bin/self-refactor-opus.sh" "$@"

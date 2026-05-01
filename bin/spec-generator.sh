@@ -97,12 +97,12 @@ EOF
 )
 
     # SambaNova DeepSeek — fast, free-tier 500/day, great for structured output
-    SPEC=$(echo "$PROMPT" | "$HOME/.claude/bin/sambanova-bridge.sh" --model deepseek 2>>"$LOG" | /usr/bin/head -c 6000)
+    SPEC=$(echo "$PROMPT" | "/opt/surrogate-1-harvest/bin/sambanova-bridge.sh" --model deepseek 2>>"$LOG" | /usr/bin/head -c 6000)
 
     # Fallback to cloudflare if samba returned empty
     if [[ -z "$SPEC" ]] || [[ ${#SPEC} -lt 500 ]]; then
         echo "[$(date '+%H:%M:%S')] $PID samba empty, trying cloudflare" >> "$LOG"
-        SPEC=$(echo "$PROMPT" | "$HOME/.claude/bin/cloudflare-bridge.sh" --model deepseek 2>>"$LOG" | /usr/bin/head -c 6000)
+        SPEC=$(echo "$PROMPT" | "/opt/surrogate-1-harvest/bin/cloudflare-bridge.sh" --model deepseek 2>>"$LOG" | /usr/bin/head -c 6000)
     fi
 
     if [[ -z "$SPEC" ]] || [[ ${#SPEC} -lt 500 ]]; then
