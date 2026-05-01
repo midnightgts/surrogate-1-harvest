@@ -88,16 +88,36 @@ def save_last_run(state: dict) -> None:
     LAST_RUN_FILE.write_text(json.dumps(state, indent=2, default=str))
 
 
+UA_BROWSER = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+
 def call_llm(prompt: str, max_tokens: int = 1024, timeout: int = 20) -> str:
-    """Free-tier LLM call. Tries Cerebras → Groq → OpenRouter."""
+    """11-provider fallback chain (mirrors axentx_pipeline.call_llm). Model
+    names probed live 2026-05-01 — only these work for our free-tier keys."""
     chains = [
-        ("Cerebras", "https://api.cerebras.ai/v1/chat/completions",
-         os.environ.get("CEREBRAS_API_KEY"), "llama-3.3-70b"),
         ("Groq", "https://api.groq.com/openai/v1/chat/completions",
          os.environ.get("GROQ_API_KEY"), "llama-3.3-70b-versatile"),
+        ("Cerebras", "https://api.cerebras.ai/v1/chat/completions",
+         os.environ.get("CEREBRAS_API_KEY"), "llama3.1-8b"),
+        ("SambaNova", "https://api.sambanova.ai/v1/chat/completions",
+         os.environ.get("SAMBANOVA_API_KEY"), "Meta-Llama-3.3-70B-Instruct"),
+        ("NVIDIA-NIM", "https://integrate.api.nvidia.com/v1/chat/completions",
+         os.environ.get("NVIDIA_NIM_API_KEY") or os.environ.get("NVIDIA_API_KEY"),
+         "meta/llama-3.3-70b-instruct"),
+        ("Kimi", "https://api.moonshot.ai/v1/chat/completions",
+         os.environ.get("KIMI_API_KEY") or os.environ.get("MOONSHOT_API_KEY"),
+         "moonshot-v1-8k"),
+        ("xAI", "https://api.x.ai/v1/chat/completions",
+         os.environ.get("GROK_API_KEY") or os.environ.get("XAI_API_KEY"),
+         "grok-2-1212"),
+        ("Chutes", "https://llm.chutes.ai/v1/chat/completions",
+         os.environ.get("CHUTES_API_KEY"), "deepseek-ai/DeepSeek-V3"),
         ("OpenRouter", "https://openrouter.ai/api/v1/chat/completions",
          os.environ.get("OPENROUTER_API_KEY"),
-         "deepseek/deepseek-chat-v3.1:free"),
+         "meta-llama/llama-3.3-70b-instruct:free"),
+        ("GitHub-Models", "https://models.inference.ai.azure.com/chat/completions",
+         os.environ.get("GITHUB_MODELS_TOKEN"), "gpt-4o-mini"),
     ]
     payload = {
         "messages": [{"role": "user", "content": prompt[:8000]}],
@@ -115,7 +135,7 @@ def call_llm(prompt: str, max_tokens: int = 1024, timeout: int = 20) -> str:
             headers={
                 "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
-                "User-Agent": "hermes-cron-dispatcher/1.0",
+                "User-Agent": UA_BROWSER,
             },
         )
         try:
