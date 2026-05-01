@@ -34,11 +34,19 @@ from pathlib import Path
 REPO_ROOT = Path(os.environ.get("REPO_ROOT", "/opt/surrogate-1-harvest"))
 SHARED = REPO_ROOT / "state" / "swarm-shared"
 QUEUES = {
-    "dev":     SHARED / "dev-queue",
-    "review":  SHARED / "review-queue",
-    "qa":      SHARED / "qa-queue",
-    "commit":  SHARED / "commit-queue",
-    "done":    SHARED / "done",
+    # Existing engineering pipeline (unchanged)
+    "dev":      SHARED / "dev-queue",
+    "review":   SHARED / "review-queue",
+    "qa":       SHARED / "qa-queue",
+    "commit":   SHARED / "commit-queue",
+    "done":     SHARED / "done",
+    # New product-discovery pipeline: research → bd → design → business → prd → dev
+    "research": SHARED / "research-queue",
+    "bd":       SHARED / "bd-queue",
+    "design":   SHARED / "design-queue",
+    "business": SHARED / "business-queue",
+    "marketing":SHARED / "marketing-queue",
+    "prd":      SHARED / "prd-queue",
 }
 LOG_DIR = REPO_ROOT / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
