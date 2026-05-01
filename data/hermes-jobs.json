@@ -6063,6 +6063,36 @@
         "bulk",
         "parallel"
       ]
+    },
+    {
+      "id": "dataset-enrich-cron",
+      "name": "dataset-enrich (every 30 min)",
+      "schedule": {
+        "expr": "*/30 * * * *"
+      },
+      "script": "/opt/surrogate-1-harvest/bin/dataset-enrich.sh",
+      "enabled": true,
+      "deliver": "local"
+    },
+    {
+      "id": "dataset-mirror-cron",
+      "name": "dataset-mirror (every 6h)",
+      "schedule": {
+        "expr": "0 */6 * * *"
+      },
+      "script": "/opt/surrogate-1-harvest/bin/dataset-mirror.sh",
+      "enabled": true,
+      "deliver": "local"
+    },
+    {
+      "id": "lightning-trainer-cron",
+      "name": "lightning-trainer (daily 02:00 UTC)",
+      "schedule": {
+        "expr": "0 2 * * *"
+      },
+      "script": "/opt/surrogate-1-harvest/bin/lightning-trainer.sh",
+      "enabled": true,
+      "deliver": "local"
     }
   ],
   "updated_at": "2026-04-28T00:13:25.403429+07:00"
