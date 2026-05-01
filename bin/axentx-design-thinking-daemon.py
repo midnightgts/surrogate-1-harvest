@@ -61,7 +61,8 @@ Output STRICT JSON:
 }
 
 Be tough — kill bad ideas at this stage. Most pains are real but vague;
-they need sharpening before they become a product hypothesis."""
+they need sharpening before they become a product hypothesis.\nGROUNDING: Cite at least one concrete source for every claim (URL from the post, dataset/repo name, established framework name, published number). If you cannot cite, say "unverified — needs research" instead of fabricating a number, market size, competitor name, or feature claim. Made-up references are worse than honest gaps.
+"""
 
 
 def do_one_design() -> bool:

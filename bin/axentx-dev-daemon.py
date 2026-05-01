@@ -48,7 +48,8 @@ def _load_knowledge_index() -> str:
 
 KNOWLEDGE_INDEX = _load_knowledge_index()
 
-CURSOR_FILE = REPO_ROOT / "state" / "axentx-dev-cursor.json"
+DEV_WORKER_ID = os.environ.get("DEV_WORKER_ID", "1")
+CURSOR_FILE = REPO_ROOT / "state" / f"axentx-dev-cursor-{DEV_WORKER_ID}.json"
 NEW_TASK_INTERVAL = int(os.environ.get("DEV_DAEMON_INTERVAL_SEC", "300"))
 
 DEV_SYSTEM = """You are a senior full-stack engineer working autonomously on \
@@ -86,7 +87,7 @@ def load_cursor() -> dict:
     if CURSOR_FILE.exists():
         try: return json.loads(CURSOR_FILE.read_text())
         except: pass
-    return {"rotation_idx": 0, "focus_idx": 0}
+    return {"rotation_idx": (int(DEV_WORKER_ID)-1) % len(ROTATION), "focus_idx": 0}
 
 
 def save_cursor(c: dict) -> None:

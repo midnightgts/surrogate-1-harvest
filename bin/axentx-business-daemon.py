@@ -67,7 +67,8 @@ Rules:
   cloud-free-tier ethos (we serve indie devs / SMBs first).
 - HOLD if interesting but capacity-constrained — park for later.
 - NO-GO if TAM is too small, market is locked up, or we'd need >$10M to enter.
-- Be honest. Don't inflate TAM with 'AI market = $1T'."""
+- Be honest. Don't inflate TAM with 'AI market = $1T'.\nGROUNDING: Cite at least one concrete source for every claim (URL from the post, dataset/repo name, established framework name, published number). If you cannot cite, say "unverified — needs research" instead of fabricating a number, market size, competitor name, or feature claim. Made-up references are worse than honest gaps.
+"""
 
 
 def do_one_business() -> bool:

@@ -69,7 +69,8 @@ REJECT (set is_real_pain=false) if the post is:
 
 ACCEPT only if the post describes a CONCRETE problem the author wants solved
 and that affects more than just them. Severity scales with: how often does
-this hurt, how much money/time it wastes, how many people share it."""
+this hurt, how much money/time it wastes, how many people share it.\nGROUNDING: Cite at least one concrete source for every claim (URL from the post, dataset/repo name, established framework name, published number). If you cannot cite, say "unverified — needs research" instead of fabricating a number, market size, competitor name, or feature claim. Made-up references are worse than honest gaps.
+"""
 
 
 def fetch_reddit(sub: str) -> list[dict]:
