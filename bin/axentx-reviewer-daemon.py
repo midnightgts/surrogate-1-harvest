@@ -8,9 +8,21 @@ import sys, json, datetime
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (log, call_llm, pick_oldest, advance, fail,
-                             daemon_loop)
+                             daemon_loop, get_role_budget)
+
+REVIEWER_BUDGET = get_role_budget("reviewer", 1200)
 
 POLL_SEC = 30
+
+# Bump only when REVIEWER_SYSTEM (or other rubric-defining behavior) changes.
+# Stamped into every reviewer history entry so we can audit which rubric
+# produced any given verdict and track approval-rate drift across versions.
+RUBRIC_VERSION = "v1"
+
+# Hard caps that auto-reject before the LLM is even called. Items exceeding
+# either threshold should be split into smaller PRs, regardless of content.
+MAX_DIFF_CHARS = int(__import__("os").environ.get("REVIEWER_MAX_DIFF_CHARS", "8000"))
+MAX_DIFF_LINES = int(__import__("os").environ.get("REVIEWER_MAX_DIFF_LINES", "250"))
 
 # Pragmatic reviewer prompt — old version rejected on "missing minor details"
 # which created an infinite reject loop with 0 commits over 24 hours. This
@@ -46,6 +58,13 @@ criteria bullets (for APPROVE) or specific blocker citations (for REJECT)."""
 MAX_REVIEW_ATTEMPTS = int(__import__("os").environ.get("MAX_REVIEW_ATTEMPTS", "3"))
 
 
+def _stamp_rubric(item: dict) -> None:
+    """Tag the most recent history entry with the rubric version that
+    produced it. Lets us correlate verdict drift across rubric revisions."""
+    if item.get("history"):
+        item["history"][-1]["rubric_version"] = RUBRIC_VERSION
+
+
 def do_one_review() -> bool:
     picked = pick_oldest("review")
     if not picked: return False
@@ -55,12 +74,31 @@ def do_one_review() -> bool:
     project = item.get("project", "?")
     focus = item.get("focus", "?")
     log("reviewer", f"▸ {item['id']} ({project}/{focus}) attempt={attempts}/{MAX_REVIEW_ATTEMPTS}")
+
+    # Diff-size cap — large changes can't be reviewed reliably and almost
+    # always hide unrelated edits. Force REJECT before the LLM runs.
+    n_chars = len(proposal)
+    n_lines = proposal.count("\n") + 1
+    if n_chars > MAX_DIFF_CHARS or n_lines > MAX_DIFF_LINES:
+        msg = (
+            f"REJECT: diff too large to review ({n_chars} chars / "
+            f"{n_lines} lines). Split into smaller PRs (caps: "
+            f"{MAX_DIFF_CHARS} chars / {MAX_DIFF_LINES} lines)."
+        )
+        item["current"]["text"] = (
+            f"REVIEWER REJECTED previous attempt (round {attempts}):\n\n{msg}\n\n"
+            f"--- original proposal ---\n{proposal[:3000]}")
+        advance(item, src_path, "dev", "reviewer", msg)
+        _stamp_rubric(item)
+        log("reviewer", f"↺ {item['id']} REJECT (diff too large) → dev")
+        return True
+
     prompt = (f"Project: {project}\nFocus: {focus}\n"
               f"This is dev attempt {attempts} of {MAX_REVIEW_ATTEMPTS}.\n\n"
               f"Proposed change:\n```\n{proposal[:5000]}\n```\n\n"
               f"Review pragmatically. Approve if it's a workable step forward.")
     try:
-        out = call_llm(prompt, system=REVIEWER_SYSTEM, max_tokens=1200, timeout=40)
+        out = call_llm(prompt, system=REVIEWER_SYSTEM, max_tokens=REVIEWER_BUDGET, timeout=40)
     except Exception as e:
         fail(item, src_path, "reviewer", f"LLM failed: {e}")
         log("reviewer", f"✗ {item['id']}: LLM failed")
@@ -81,11 +119,13 @@ def do_one_review() -> bool:
             f"open follow-up issue for the deficiencies above."
         )
         advance(item, src_path, "qa", "reviewer", forced_out)
+        _stamp_rubric(item)
         log("reviewer", f"⚠ {item['id']} FORCED-APPROVE ({MAX_REVIEW_ATTEMPTS}/{MAX_REVIEW_ATTEMPTS} attempts) → qa-queue [needs_iteration]")
         return True
 
     if first_line.upper().startswith("APPROVE"):
         advance(item, src_path, "qa", "reviewer", out)
+        _stamp_rubric(item)
         log("reviewer", f"✓ {item['id']} APPROVE → qa-queue")
     elif first_line.upper().startswith("REJECT"):
         # Send back to dev with the rejection note (dev daemon will pick this
@@ -95,10 +135,12 @@ def do_one_review() -> bool:
             f"REVIEWER REJECTED previous attempt (round {attempts}):\n\n{out}\n\n"
             f"--- original proposal ---\n{proposal[:3000]}")
         advance(item, src_path, "dev", "reviewer", out)
+        _stamp_rubric(item)
         log("reviewer", f"↺ {item['id']} REJECT → back to dev (attempt {attempts}/{MAX_REVIEW_ATTEMPTS})")
     else:
         # Ambiguous output → default approve, keep flow moving.
         advance(item, src_path, "qa", "reviewer", out)
+        _stamp_rubric(item)
         log("reviewer", f"~ {item['id']} ambiguous (default approve) → qa")
     return True
 

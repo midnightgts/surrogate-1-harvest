@@ -20,33 +20,56 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, QUEUES, log, call_llm, synthesize,
                              new_item, write_item, daemon_loop,
-                             pick_oldest, advance)
+                             pick_oldest, advance, get_role_budget)
+
+DEV_BUDGET = get_role_budget("dev", 2000)
+DEV_REFINE_BUDGET = get_role_budget("dev_refine", 2500)
 
 PROJECTS_ROOT = Path(os.environ.get("AXENTX_ROOT", "/opt/axentx"))
 ROTATION = ["Costinel", "vanguard", "airship", "axiomops", "workio", "surrogate-1"]
 FOCUS_CYCLE = ["discovery", "design", "backend", "frontend", "quality", "ops"]
 
 
-def _load_knowledge_index() -> str:
-    """Read knowledge_index.md (pattern → solution map) once at module load.
-    Lessons learned + past patterns get prepended to every dev prompt so the
-    LLM sees what we've solved before instead of re-discovering it."""
-    candidates = [
-        REPO_ROOT / "data" / "memory" / "knowledge_index.md",
-        Path.home() / ".claude" / "memory" / "knowledge_index.md",
-    ]
+_GLOBAL_INDEX_PATHS = (
+    REPO_ROOT / "data" / "memory" / "knowledge_index.md",
+    Path.home() / ".claude" / "memory" / "knowledge_index.md",
+)
+_PROJECT_INDEX_DIR = REPO_ROOT / "data" / "memory"
+
+
+def _load_knowledge_index_for(project: str) -> str:
+    """Per-project knowledge index, falls back to global.
+    Project file convention: data/memory/knowledge-<project>.md (lowercase).
+    Cached for the daemon process lifetime — invalidated only by restart.
+    Cap at 6KB so we don't blow prompt budget."""
+    cache = _load_knowledge_index_for._cache  # type: ignore[attr-defined]
+    key = (project or "").lower()
+    if key in cache:
+        return cache[key]
+    candidates = []
+    if key:
+        candidates.append(_PROJECT_INDEX_DIR / f"knowledge-{key}.md")
+    candidates.extend(_GLOBAL_INDEX_PATHS)
+    text = "(knowledge_index.md not available)"
     for p in candidates:
         try:
             if p.exists():
-                txt = p.read_text(errors="replace")
-                # Cap at 6KB so we don't blow the prompt budget
-                return txt[:6000]
+                text = p.read_text(errors="replace")[:6000]
+                break
         except Exception:
             continue
-    return "(knowledge_index.md not available)"
+    cache[key] = text
+    return text
 
 
-KNOWLEDGE_INDEX = _load_knowledge_index()
+_load_knowledge_index_for._cache = {}  # type: ignore[attr-defined]
+
+# Test-first dev mode — projects listed here get a TDD instruction prepended
+# to the dev prompt so the LLM writes the test before the implementation.
+TEST_FIRST_PROJECTS = {
+    p.strip() for p in os.environ.get("TEST_FIRST_PROJECTS", "").split(",")
+    if p.strip()
+}
 
 DEV_WORKER_ID = os.environ.get("DEV_WORKER_ID", "1")
 CURSOR_FILE = REPO_ROOT / "state" / f"axentx-dev-cursor-{DEV_WORKER_ID}.json"
@@ -140,7 +163,13 @@ def refine_rejected_task(src_path, item) -> bool:
     log("dev", f"↺ refine {item['id']} ({project}/{focus}) attempt {attempts+1}")
 
     git_log, readme, prior = repo_context(project)
+    test_first_prefix = (
+        "Write the test FIRST, then the implementation. Show the failing test, "
+        "then the code that makes it pass.\n\n"
+        if project in TEST_FIRST_PROJECTS else ""
+    )
     refine_prompt = (
+        f"{test_first_prefix}"
         f"REFINEMENT — your previous attempt was rejected. The reviewer's "
         f"specific feedback is below. Address each cited blocker concretely.\n\n"
         f"=== reviewer feedback ===\n{rejected_text[:3500]}\n\n"
@@ -153,7 +182,7 @@ def refine_rejected_task(src_path, item) -> bool:
     )
     try:
         out = synthesize(refine_prompt, system=DEV_SYSTEM, n_attempts=2,
-                         max_tokens=2500, timeout=50)
+                         max_tokens=DEV_REFINE_BUDGET, timeout=50)
     except Exception as e:
         log("dev", f"✗ refine LLM failed: {e}")
         return False
@@ -199,10 +228,14 @@ def do_one_cycle() -> bool:
         save_cursor(cursor)
         return False
     git_log, readme, prior = repo_context(project)
+    knowledge_index = _load_knowledge_index_for(project)
     prompt = PROMPT_TPL.format(
         project=project, repo_path=repo_path,
         focus=focus, git_log=git_log, readme=readme, prior_decisions=prior,
-        knowledge_index=KNOWLEDGE_INDEX)
+        knowledge_index=knowledge_index)
+    if project in TEST_FIRST_PROJECTS:
+        prompt = ("Write the test FIRST, then the implementation. Show the "
+                  "failing test, then the code that makes it pass.\n\n" + prompt)
     # Synthesis pass = 3 LLM attempts + 1 synth. Heavier but better quality.
     # Toggle SYNTH_DEV=0 to fall back to single call_llm.
     synth_enabled = os.environ.get("SYNTH_DEV", "1") == "1"
@@ -210,9 +243,9 @@ def do_one_cycle() -> bool:
     try:
         if synth_enabled:
             out = synthesize(prompt, system=DEV_SYSTEM, n_attempts=3,
-                             max_tokens=2000, timeout=45)
+                             max_tokens=DEV_BUDGET, timeout=45)
         else:
-            out = call_llm(prompt, system=DEV_SYSTEM, max_tokens=2000, timeout=45)
+            out = call_llm(prompt, system=DEV_SYSTEM, max_tokens=DEV_BUDGET, timeout=45)
     except Exception as e:
         log("dev", f"✗ LLM failed: {e}")
         return False
