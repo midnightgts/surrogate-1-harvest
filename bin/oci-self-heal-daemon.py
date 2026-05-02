@@ -36,6 +36,7 @@ SERVICES = {
     "axentx-content-daemon":   "content marketing",
     "axentx-trends-daemon":    "market signal scraper",
     "axentx-customer-poll-daemon": "weekly Discord poll",
+    "axentx-incident-responder-daemon": "auto-fix GH/Render failures",
 }
 
 

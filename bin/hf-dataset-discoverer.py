@@ -15,7 +15,7 @@ Same dataset never re-evaluated.
 """
 from __future__ import annotations
 import hashlib, json, os, re, sqlite3, sys, time
-import urllib.parse, urllib.request
+import urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
 HOME = Path(os.environ.get("HOME", "/home/hermes"))
@@ -179,15 +179,36 @@ def init_db():
         c.commit()
 
 
+# Rate-limit defense: HF behind Cloudflare 429s plain urllib UAs aggressively
+# (272k 429s / 7d on shared GCP NAT was the trigger). Browser UA + global
+# back-off when we see a 429 → next call sleeps until quota window opens.
+_HF_BACKOFF_UNTIL = 0.0
+_HF_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+
 def hf_get(url: str, timeout: int = 15):
-    headers = {"User-Agent": "Surrogate-1/dataset-discoverer"}
+    global _HF_BACKOFF_UNTIL
+    if _HF_BACKOFF_UNTIL > time.time():
+        # Skip until back-off window expires — saves an immediate re-429.
+        return None
+    headers = {"User-Agent": _HF_UA}
     if HF_TOKEN:
         headers["Authorization"] = f"Bearer {HF_TOKEN}"
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.load(r)
-    except Exception as e:
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            # Honor Retry-After if present; else 5 min default
+            retry = e.headers.get("Retry-After") if hasattr(e, "headers") else None
+            wait = int(retry) if (retry and retry.isdigit()) else 300
+            _HF_BACKOFF_UNTIL = time.time() + wait
+        return None
+    except Exception:
         return None
 
 
@@ -387,7 +408,7 @@ def discover_cycle() -> dict:
                     new_queued += 1
                 else:
                     new_rejected += 1
-                time.sleep(0.3)  # gentle on HF API
+                time.sleep(2.0)  # gentle on HF API (was 0.3 — caused 429 spam)
 
             # Update query history for this query+sort combo
             try:

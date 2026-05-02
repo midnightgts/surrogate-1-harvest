@@ -30,6 +30,30 @@ SPACES = [
 # Per-repo cooldown: skip repo until unix_ts. Hit on 429 to avoid hammering
 # a rate-limited endpoint every sweep.
 _repo_cooldown: dict[str, float] = {}
+# Per-Space consecutive HTTP-hang count. Reset on success. Trigger auto-restart
+# at ≥2 consecutive hangs so a single transient blip doesn't bounce the Space.
+_consec_hangs: dict[str, int] = {}
+# Auto-restart cool-down so we don't restart-loop a Space that won't come back.
+_restart_cooldown: dict[str, float] = {}
+RESTART_COOLDOWN_SEC = int(os.environ.get("HF_RESTART_COOLDOWN_SEC", "900"))
+
+
+def hf_restart_space(repo: str) -> tuple[bool, str]:
+    """POST /api/spaces/{repo}/restart. Returns (ok, detail)."""
+    if not HF_TOKEN:
+        return False, "HF_TOKEN not set"
+    url = f"https://huggingface.co/api/spaces/{repo}/restart?factory=true"
+    req = urllib.request.Request(url, data=b"", method="POST", headers={
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "User-Agent": UA_BROWSER,
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return (200 <= r.status < 400), f"HTTP {r.status}"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code}: {e.read().decode()[:120]}"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {str(e)[:120]}"
 
 
 def get_json(url, timeout=8, repo_key: str | None = None):
@@ -102,6 +126,7 @@ while True:
             with urllib.request.urlopen(req, timeout=20) as r:
                 if 200 <= r.status < 400:
                     n_running += 1
+                    _consec_hangs[sp] = 0  # success — reset hang counter
                 else:
                     issues.append(f"⚠ {sp} HTTP {r.status} on {url}")
         except urllib.error.HTTPError as e:
@@ -110,6 +135,7 @@ while True:
                 # respond (with 404), so the container is alive. That's the
                 # signal we actually care about. Count as RUNNING.
                 n_running += 1
+                _consec_hangs[sp] = 0
             elif e.code == 429:
                 _repo_cooldown[sp] = time.time() + COOLDOWN_SEC
                 n_cooldown += 1
@@ -121,13 +147,25 @@ while True:
             else:
                 issues.append(f"HF probe fail for {sp}: HTTP {e.code}")
         except (TimeoutError, socket.timeout) as e:
-            # Container hung at HTTP layer — alert ONCE then cool down so we
-            # don't spam Discord every 5 min about the same broken Space.
-            # Real fix is on the user's side (restart the Space from HF UI),
-            # so re-alerting before cooldown expires has no value.
-            if _repo_cooldown.get(sp, 0) <= time.time():
-                # First time we see this — fire one alert, then start cooldown.
-                issues.append(f"⚠ {sp} HTTP layer hung (timeout >20s) — needs restart")
+            # Container hung at HTTP layer. Track consecutive hangs; on ≥2 in a
+            # row, attempt auto-restart via HF API (factory=true). Cool down
+            # afterward so we don't bounce the Space if it can't come back.
+            _consec_hangs[sp] = _consec_hangs.get(sp, 0) + 1
+            if _restart_cooldown.get(sp, 0) > time.time():
+                n_cooldown += 1
+                continue
+            if _consec_hangs[sp] >= 2:
+                ok, detail = hf_restart_space(sp)
+                _restart_cooldown[sp] = time.time() + RESTART_COOLDOWN_SEC
+                _repo_cooldown[sp] = time.time() + 60  # let it warm
+                if ok:
+                    issues.append(f"🔧 {sp} hung — auto-restarted via HF API ({detail})")
+                    _consec_hangs[sp] = 0
+                else:
+                    issues.append(f"🚨 {sp} hung + restart FAILED: {detail}")
+            elif _repo_cooldown.get(sp, 0) <= time.time():
+                # First hang — fire one alert, give it a sweep to recover on its own
+                issues.append(f"⚠ {sp} HTTP layer hung (timeout >20s) — will auto-restart on next hang")
                 _repo_cooldown[sp] = time.time() + COOLDOWN_SEC
             else:
                 n_cooldown += 1
