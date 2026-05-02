@@ -31,9 +31,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, log, call_llm, pick_oldest, advance,
-                             fail, daemon_loop, new_item, write_item)
+                             fail, daemon_loop, new_item, write_item,
+                             get_role_budget)
 
 POLL_SEC = int(os.environ.get("PRD_POLL_SEC", "120"))
+PRD_BUDGET = get_role_budget("prd", 3500)
 
 
 PRD_SYSTEM = """You are a senior PM. For a validated opportunity, produce a
@@ -48,7 +50,8 @@ Output STRICT JSON:
     "problem": "<what user pain we solve, with evidence>",
     "audience": "<exact ICP>",
     "non_goals": ["<3 things we explicitly won't do in v1>"],
-    "success_metric": "<the one number that defines done>"
+    "success_metric": "<the one number that defines done>",
+    "kill_criteria": ["<3 testable conditions that, if met, mean we kill the product>"]
   },
   "epics": [
     {
@@ -74,7 +77,10 @@ Rules:
 - Each task has 1-3 likely file paths (under the target project repo).
 - Tasks should be small — 'add cron field validation' yes, 'build entire
   auth subsystem' no. The dev daemon implements each task in <2h cycles.
-- Specify the TARGET PROJECT path (e.g. /opt/axentx/Costinel) for files."""
+- Specify the TARGET PROJECT path (e.g. /opt/axentx/Costinel) for files.
+- kill_criteria are the 3 measurable failure conditions that, if observed
+  post-launch, mean we shut the product down. Be specific (e.g. '<10 weekly
+  active users after 6 weeks', 'CAC > LTV by 3x at month 3', 'NPS < 20')."""
 
 
 def do_one_prd() -> bool:
@@ -106,7 +112,7 @@ def do_one_prd() -> bool:
         f"Output PRD + epics + stories + tasks (strict JSON, follow schema)."
     )
     try:
-        out = call_llm(prompt, system=PRD_SYSTEM, max_tokens=3500, timeout=90)
+        out = call_llm(prompt, system=PRD_SYSTEM, max_tokens=PRD_BUDGET, timeout=90)
         txt = out.strip()
         if "```" in txt:
             txt = txt.split("```")[1]

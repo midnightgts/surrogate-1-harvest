@@ -21,9 +21,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, log, call_llm, pick_oldest, advance,
-                             fail, daemon_loop)
+                             fail, daemon_loop, get_role_budget)
 
 POLL_SEC = int(os.environ.get("MARKETING_POLL_SEC", "90"))
+MARKETING_BUDGET = get_role_budget("marketing", 1800)
+MARKETING_FACTCHECK_BUDGET = get_role_budget("marketing_factcheck", 600)
 
 
 MARKETING_SYSTEM = """You are head of product marketing. For each validated
@@ -77,7 +79,7 @@ def do_one_marketing() -> bool:
         f"Draft positioning + ICP + competitor map + GTM + messaging. Strict JSON."
     )
     try:
-        out = call_llm(prompt, system=MARKETING_SYSTEM, max_tokens=1800, timeout=60)
+        out = call_llm(prompt, system=MARKETING_SYSTEM, max_tokens=MARKETING_BUDGET, timeout=60)
         txt = out.strip()
         if "```" in txt:
             txt = txt.split("```")[1]
@@ -88,18 +90,46 @@ def do_one_marketing() -> bool:
         log("marketing", f"✗ {item['id']}: parse fail")
         return True
 
+    # Fact-check pass — flag claims that are made up / unverifiable so a
+    # downstream human (or the PRD daemon) doesn't repeat them. Cheap call;
+    # short prompt routes through Workers AI fast path.
+    fact_check_prompt = (
+        "Audit the following marketing JSON for unverifiable or fabricated "
+        "claims (made-up competitor names, invented stats, unsourced market "
+        "sizes, exaggerated 'first/only' claims, etc.). Output strict JSON: "
+        '{"unverifiable": [{"field": "<json path>", "claim": "<text>", '
+        '"why": "<reason>"}]}. Empty list if all claims look defensible.\n\n'
+        f"{json.dumps(gtm, ensure_ascii=False)[:3500]}"
+    )
+    findings = {"unverifiable": [], "checked_at": datetime.datetime.utcnow().isoformat() + "Z"}
+    try:
+        fc_out = call_llm(fact_check_prompt, max_tokens=MARKETING_FACTCHECK_BUDGET, timeout=30)
+        fc_txt = fc_out.strip()
+        if "```" in fc_txt:
+            fc_txt = fc_txt.split("```")[1]
+            if fc_txt.startswith("json"): fc_txt = fc_txt[4:]
+        parsed = json.loads(fc_txt.strip())
+        if isinstance(parsed.get("unverifiable"), list):
+            findings["unverifiable"] = parsed["unverifiable"][:10]
+    except Exception as e:
+        findings["error"] = f"fact_check failed: {str(e)[:120]}"
+
     item["marketing_verdict"] = gtm
+    item["fact_check_findings"] = findings
     item["history"].append({
         "stage": "marketing",
         "actor": "axentx-marketing",
         "output": json.dumps(gtm, ensure_ascii=False),
         "at": datetime.datetime.utcnow().isoformat() + "Z",
+        "fact_check": findings,
     })
     item["current"]["text"] = json.dumps(gtm, ensure_ascii=False)
 
     advance(item, src_path, "prd", "marketing",
             json.dumps(gtm, ensure_ascii=False))
-    log("marketing", f"  ✓ → prd-queue (positioning: {gtm.get('positioning','')[:60]})")
+    n_flags = len(findings["unverifiable"])
+    log("marketing", f"  ✓ → prd-queue (positioning: "
+                    f"{gtm.get('positioning','')[:50]}; fact-flags={n_flags})")
     return True
 
 

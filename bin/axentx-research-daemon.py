@@ -29,7 +29,13 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from axentx_pipeline import (REPO_ROOT, log, call_llm, write_item, daemon_loop)
+from axentx_pipeline import (REPO_ROOT, log, call_llm, write_item, daemon_loop,
+                             rag_top_score, new_trace_id, get_role_budget)
+
+# Vectorize-based dedup: if the new pain matches a past pain at this cosine
+# score or higher, skip it. 0.85 = "essentially the same problem rephrased".
+DEDUP_SIM_THRESHOLD = float(os.environ.get("RESEARCH_DEDUP_THRESHOLD", "0.85"))
+RESEARCH_BUDGET = get_role_budget("research", 400)
 
 WORKER_ID = os.environ.get("RESEARCH_WORKER_ID", "1")
 POLL_SEC = int(os.environ.get("RESEARCH_POLL_SEC", "600"))  # 10 min/cycle
@@ -280,7 +286,7 @@ def do_one_cycle() -> bool:
             )
             try:
                 out = call_llm(prompt, system=RESEARCH_SYSTEM,
-                               max_tokens=400, timeout=30)
+                               max_tokens=RESEARCH_BUDGET, timeout=30)
                 # Extract JSON (LLM sometimes wraps in code fences)
                 txt = out.strip()
                 if "```" in txt:
@@ -297,26 +303,45 @@ def do_one_cycle() -> bool:
             if verdict.get("severity", 0) < 5:
                 continue  # noise filter
 
-            # Push to research-queue for BD daemon
+            # Dedup against the RAG corpus — if a near-identical pain has
+            # been mined before, skip rather than re-running the whole
+            # downstream pipeline on a duplicate idea.
+            pain_text = verdict.get("pain_one_liner") or ""
+            if pain_text:
+                sim = rag_top_score(pain_text, kind="pain")
+                if sim >= DEDUP_SIM_THRESHOLD:
+                    log(f"research-{WORKER_ID}",
+                        f"  ⤳ dedup (sim {sim:.2f}≥{DEDUP_SIM_THRESHOLD}): "
+                        f"{pain_text[:60]}")
+                    continue
+
+            # Push to research-queue for BD daemon. discovery_id stays with
+            # the item through every advance — write-once, never overwritten.
+            ts_iso = datetime.datetime.utcnow().isoformat() + "Z"
             ts = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
             item_id = f"{ts}-pain-{fp}"
+            discovery_id = new_trace_id()
             item = {
                 "id": item_id,
+                "discovery_id": discovery_id,
+                "trace_id": discovery_id,  # one trace per opportunity end-to-end
                 "stage": "research",
-                "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+                "created_at": ts_iso,
                 "post": post,
                 "verdict": verdict,
                 "history": [{
                     "stage": "research",
                     "actor": f"axentx-research-{WORKER_ID}",
                     "output": json.dumps(verdict, ensure_ascii=False),
-                    "at": datetime.datetime.utcnow().isoformat() + "Z",
+                    "at": ts_iso,
                 }],
                 "current": {"text": json.dumps(verdict, ensure_ascii=False)},
             }
             write_item(item, "bd")  # next stage = BD triage
             log(f"research-{WORKER_ID}",
-                f"  ✓ pain (sev {verdict.get('severity')}): {verdict.get('pain_one_liner','')[:80]}")
+                f"  ✓ pain (sev {verdict.get('severity')}, "
+                f"disc={discovery_id[:8]}): "
+                f"{verdict.get('pain_one_liner','')[:70]}")
             fired += 1
 
     c["seen"] = list(seen)

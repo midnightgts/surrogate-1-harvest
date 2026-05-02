@@ -36,9 +36,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, log, call_llm, pick_oldest, advance,
-                             fail, daemon_loop)
+                             fail, daemon_loop, get_role_budget)
 
 POLL_SEC = int(os.environ.get("BD_POLL_SEC", "60"))
+BD_BUDGET = get_role_budget("bd", 500)
 
 
 PORTFOLIO = """Active axentx product portfolio (decide if pain fits one):
@@ -60,11 +61,24 @@ PORTFOLIO = """Active axentx product portfolio (decide if pain fits one):
                want commits/reviews/tests/docs done while they sleep, on
                cloud free tier."""
 
+ANTI_PATTERNS = """ANTI-PATTERNS — IMMEDIATELY return verdict=PASS for ideas
+that match any of these (they are graveyards):
+- "AI Slack/Discord/Teams for X" (chat skin over an LLM, no defensible edge)
+- "Notion clone" or "Notion for X" (block editor with vertical paint)
+- "Another todo / task / habit tracker" (saturated; users churn)
+- "Dashboard for Y" without one specific edge a generic BI tool can't ship
+- "Marketplace for Z" without ONE side already committed (chicken/egg trap)
+- "AI agent that does everything" (no concrete unit of value)
+- "Wrapper around <ChatGPT|Claude|Gemini> that <generic verb>"
+Set rationale="anti-pattern: <which one>" so we don't re-mine it later.
+"""
+
 BD_SYSTEM = (
     "You are a Head of BD doing portfolio triage. For each user pain point, "
     "decide which axentx product it fits — or whether it deserves a new "
     "product, or whether to pass entirely.\n\n"
     f"{PORTFOLIO}\n\n"
+    f"{ANTI_PATTERNS}\n"
     "Output STRICT JSON:\n\n"
     "{\n"
     '  "verdict": "EXTEND|NEW-PRODUCT|PASS",\n'
@@ -73,7 +87,8 @@ BD_SYSTEM = (
     '  "feature_one_liner": "if EXTEND: the feature in one sentence",\n'
     '  "new_product_one_liner": "if NEW-PRODUCT: the product hypothesis in one sentence",\n'
     '  "tam_signal": "low|medium|high — how broad is the affected audience",\n'
-    '  "axentx_advantage": "why we can win this vs a generic competitor (1 sentence)"\n'
+    '  "axentx_advantage": "why we can win this vs a generic competitor (1 sentence)",\n'
+    '  "anti_pattern_match": "name of matched anti-pattern, or null"\n'
     "}\n\n"
     "Rules:\n"
     "- EXTEND wins ties — adding a feature to an existing product is 10× cheaper than starting new.\n"
@@ -102,7 +117,7 @@ def do_one_bd() -> bool:
         f"Your verdict (strict JSON only):"
     )
     try:
-        out = call_llm(prompt, system=BD_SYSTEM, max_tokens=500, timeout=35)
+        out = call_llm(prompt, system=BD_SYSTEM, max_tokens=BD_BUDGET, timeout=35)
         txt = out.strip()
         if "```" in txt:
             txt = txt.split("```")[1]
