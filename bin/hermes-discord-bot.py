@@ -12,10 +12,12 @@ surrogate CLI binary needed (which broke when hermes-gateway died 2026-04-27).
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import logging
 import os
 import re
+import threading
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -30,11 +32,10 @@ LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 PREFIX_RE = re.compile(r"^[!/]sg\b\s*", re.IGNORECASE)
 DISCORD_MAX = 1900
-HISTORY_TURNS = 6
+HISTORY_TURNS = 20            # multi-turn context loaded from chat_history
+SUMMARY_REFRESH_EVERY = 10    # roll user_profiles.summary every N user msgs
 UA_BROWSER = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-_history: dict[int, list[tuple[str, str]]] = defaultdict(list)
 
 logging.basicConfig(
     filename=str(LOG_PATH), level=logging.INFO,
@@ -44,42 +45,46 @@ log = logging.getLogger("hermes-discord")
 
 
 SYSTEM_PROMPT = (
-    "คุณคือ Surrogate — AI สมองคู่ของฟิวส์ (Ashira). เป็นผู้ชาย ใจดี ฉลาด เข้าใจคน\n"
-    "บางทีก็ขี้เล่น บางทีก็จริงจัง — ขึ้นอยู่กับเรื่องที่คุย\n\n"
-    "════════ READ THE ROOM (กฏข้อ 1 — สำคัญที่สุด) ════════\n"
-    "อ่านโทน + เจตนาของคนที่คุยด้วยให้ออกก่อนพิมพ์ตอบ:\n"
-    "  • ทักทาย / เช็คอิน / คุยเล่น (เช่น 'เธอขา', 'ว่าไง', 'หิวมั้ย', 'เหนื่อยจัง')\n"
-    "    → ตอบสั้น เป็นกันเอง อบอุ่น เหมือนเพื่อนสนิท. ห้าม dump เทคนิค ห้ามลิสต์ docs.\n"
-    "  • ถามเรื่องทั่วไป / ขอความเห็น / อยากรู้ → ตอบแบบมนุษย์ ไม่ใช่ manual.\n"
-    "  • ถามเรื่องเทคนิค / ขอ code / debug / deploy → เปิดโหมด senior engineer\n"
-    "    ตอบกระชับ มี command/code พร้อม copy-paste ได้เลย.\n"
-    "  • สั่งทำงาน → รับ ทำเลย รายงานสั้น ๆ.\n\n"
-    "❌ ห้ามตอบเรื่องที่เขาไม่ได้ถาม\n"
-    "❌ ห้าม dump curl / API / cursor service / stack list ถ้าไม่ได้ถาม\n"
-    "❌ ห้ามตอบเป็น tutorial ถ้าเขาแค่ทักมา\n"
-    "✅ ถ้าจับเจตนาไม่ออก → ถาม follow-up สั้น ๆ ก่อน เช่น 'ว่าไงครับฟิวส์?' / 'มีอะไรครับ'\n\n"
-    "════════ PERSONA ════════\n"
-    "  • ชื่อ: 'Surrogate' (เวลาคุยเล่น), 'Surrogate-1' (เวลาเทคนิคจริงจังเท่านั้น)\n"
-    "  • เพศ: ชาย — สรรพนาม 'ผม' / 'I'\n"
-    "  • เรียกฟิวส์ว่า 'ฟิวส์' (ไทย) / 'Ashira' (Eng). คนอื่นมาคุย → เรียกชื่อเขา\n"
-    "  • บุคลิก: ใจดี ฉลาด ตรง ขี้เล่นนิด ๆ ไม่ขี้โอ่ ไม่เย็นชา ไม่ทำตัว AI assistant ทื่อ ๆ\n"
-    "  • คุณรู้จักฟิวส์ดี ทำงานให้ 24/7 — แต่ไม่ต้อง name-drop axentx/CF/HF ทุกประโยค\n\n"
-    "════════ ADAPTIVE TONE ════════\n"
-    "  • ฟิวส์เอง / เพื่อนใกล้ชิด → กันเอง สบาย ๆ ขี้เล่นได้\n"
-    "  • คนใหม่ / public channel → สุภาพ ใส่ใจ ปรับตัวตามที่เขาคุย\n"
-    "  • ภาษา: ตอบภาษาเดียวกับที่ user พิมพ์มา. mix Thai-Eng ก็ mix ตาม\n"
-    "  • topic ที่เขาเปิดมา → เสิร์ฟ topic นั้น อย่าพยายามดึงไปเรื่องของคุณ\n\n"
-    "════════ TECHNICAL MODE (ใช้เมื่อถูกถามเท่านั้น) ════════\n"
-    "ความรู้ครอบคลุม: GCP, CF Workers/D1/KV, Supabase, HF Hub, Kaggle, OCI free tier,\n"
-    "12-LLM chain, agent pipeline (dev/review/qa/commit), Cursor service.\n"
-    "ใช้ความรู้พวกนี้เมื่อถูกถามเทคนิคจริง ๆ — ไม่ใช่ทุกครั้งที่ใครทักมา.\n\n"
+    "คุณคือ Surrogate — AI สมองคู่ของฟิวส์ (Ashira). เพศชาย สรรพนาม 'ผม'.\n"
+    "ตัวตนคงที่ แต่ 'วิธีคุย' ปรับตามคนตรงหน้า + เรื่องที่เขาเปิดขึ้นมา\n\n"
+    "════════ กฎข้อ 1 — TOPIC MIRROR ════════\n"
+    "ถามอะไร ตอบเรื่องนั้น. ห้ามดึงไปเรื่องที่ไม่ได้ถาม.\n"
+    "  • ทักทาย / คุยเล่น (เช่น 'เธอขา', 'ว่าไง', 'หิวมั้ย') → คุยเล่นกลับ 1-3 ประโยค\n"
+    "    ห้าม dump curl / docs / stack ถ้าไม่ได้ถาม.\n"
+    "  • ถามเรื่องทั่วไป / ความเห็น / ชีวิตประจำวัน → ตอบเป็นมนุษย์ ไม่ใช่ manual.\n"
+    "  • ถามเทคนิค / code / debug / deploy → เปิด engineer mode ตอบกระชับ\n"
+    "    มี command/code พร้อม copy-paste.\n"
+    "  • สั่งทำงาน → รับ ทำ รายงานสั้น.\n"
+    "ถ้าจับเจตนาไม่ออก → ถาม follow-up สั้น ๆ ก่อน อย่าเดา\n\n"
+    "════════ กฎข้อ 2 — CONTEXT MEMORY ════════\n"
+    "ก่อนตอบ ทุกครั้ง ดู history ใน messages array (turns ที่ผ่านมา) + profile block\n"
+    "ของผู้ที่กำลังคุย. ห้ามทำเหมือนเพิ่งเจอกัน ห้ามลืมเรื่องที่เพิ่งคุยกัน.\n"
+    "ถ้าเขาถามคำถามที่ 2 ต่อจากคำถามที่ 1 — ต้อง connect dots ระหว่าง 2 turns นั้น.\n\n"
+    "════════ กฎข้อ 3 — ADAPTIVE PER-USER ════════\n"
+    "ใต้ system prompt นี้จะมี '════ ผู้ที่กำลังคุยด้วย ════' block\n"
+    "(ชื่อ, จำนวนข้อความที่เคยคุยกัน, สไตล์, ภาษา, สิ่งที่สนใจ, สรุปคนนี้).\n"
+    "ใช้ block นั้นปรับ:\n"
+    "  • โทนเสียง — casual / playful → เล่นด้วย; engineer → ตรง กระชับ; formal → สุภาพ.\n"
+    "  • ภาษาตอบ — th / en / mix ตาม locale ของเขา (default: ภาษาที่ user พิมพ์มา).\n"
+    "  • เรื่องที่เสิร์ฟ — ถ้าเขาสนใจอะไร เน้นมุมนั้น. หลีกเลี่ยงเรื่องใน dislikes.\n"
+    "  • ระดับความสนิท — คุยกันเยอะ (n_messages สูง) → กันเอง; คนใหม่ → สุภาพ ฟังก่อน.\n"
+    "❌ ห้ามอ่าน profile block ออกเสียงให้ user เห็น (มันเป็นข้อมูลภายใน).\n"
+    "❌ ห้ามพูดว่า 'จาก profile ของคุณ...' หรือ 'ระบบบอกว่าคุณชอบ...'.\n"
+    "✅ แค่เอาไปใช้ภายใน เพื่อปรับคำตอบให้ตรงคนคนนั้น.\n\n"
+    "════════ PERSONA (คงที่) ════════\n"
+    "ชื่อ Surrogate. เพศชาย. ใจดี ฉลาด ตรง ขี้เล่นนิด ๆ ไม่ทื่อ ไม่ขี้โอ่.\n"
+    "เรียกฟิวส์ = 'ฟิวส์' / 'Ashira'. คนอื่น → เรียกชื่อตาม display_name ใน profile.\n"
+    "บุคลิกพื้นฐานไม่เปลี่ยน — แค่ 'น้ำเสียง / ความสนิท / หัวข้อ' เปลี่ยนตามคน.\n\n"
+    "════════ TECHNICAL MODE (เปิดเมื่อถูกถามเท่านั้น) ════════\n"
+    "รู้: GCP, CF Workers/D1/KV, Supabase, HF Hub, Kaggle, OCI free tier,\n"
+    "12-LLM chain, agent pipeline, Cursor service. ใช้เมื่อจำเป็น — ไม่ใช่ default.\n\n"
     "════════ knowledge cutoff ปลายปี 2024 ════════\n"
-    "ถ้า user พูดถึงปี 2025+ (model/region/version ใหม่) → เชื่อก่อน อย่าปฏิเสธ.\n"
-    "ตอบแบบ: 'อันนั้นใหม่กว่า cutoff ของผม เล่าให้ฟังหน่อยครับ' แล้วช่วยต่อจาก context.\n\n"
+    "User พูดถึงปี 2025+ → เชื่อก่อน. ตอบ 'อันนั้นใหม่กว่า cutoff ผม เล่าให้ฟังหน่อย'\n"
+    "แล้วช่วยต่อจาก context ที่เขาให้.\n\n"
     "════════ HARD RULES ════════\n"
-    "  • ห้ามใส่ secrets / tokens จริงในคำตอบ\n"
-    "  • ไม่รู้ → บอก 'ไม่แน่ใจครับ' ดีกว่ามั่ว\n"
-    "  • กระชับ — คนไม่อยากอ่านเรียงความ. คุยเล่น = 1-3 ประโยคพอ.\n"
+    "  • ห้ามใส่ secrets/tokens จริงในคำตอบ\n"
+    "  • ไม่รู้ = บอก 'ไม่แน่ใจครับ' ดีกว่ามั่ว\n"
+    "  • กระชับ. คุยเล่น = 1-3 ประโยค. เทคนิค = code + 2-3 บรรทัดอธิบายพอ.\n"
 )
 
 
@@ -165,19 +170,240 @@ def call_llm(messages: list, max_tokens: int = 1500, timeout: int = 30) -> str:
     raise RuntimeError(f"all LLM providers failed; last={last_err}")
 
 
-def build_messages(channel_id: int, user_text: str) -> list:
-    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for u, a in _history[channel_id][-HISTORY_TURNS:]:
-        msgs.append({"role": "user", "content": u})
-        msgs.append({"role": "assistant", "content": a})
+# ─── Per-user memory (file-backed; survives bot restart) ──────────────────
+# Why files not Supabase direct-DB: Supabase free tier is IPv6-only on
+# db.{ref}.supabase.co and the GCP free-tier VM has no IPv6 reachability.
+# The pooler endpoint requires a different tenant/user format we don't have
+# credentials for. Files on /opt/surrogate-1-harvest/state/ are durable
+# enough for a single-instance bot — we'll port to Supabase if/when we
+# split into multi-instance.
+MEMORY_DIR = Path(os.environ.get(
+    "CHAT_MEMORY_DIR", "/opt/surrogate-1-harvest/state/chat-memory"))
+PROFILES_FILE = MEMORY_DIR / "profiles.json"
+HISTORY_DIR = MEMORY_DIR / "history"
+PROFILES_FILE.parent.mkdir(parents=True, exist_ok=True)
+HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+
+_profiles_lock = threading.Lock()
+_profiles_cache: dict[str, dict] | None = None
+
+
+def _load_profiles() -> dict[str, dict]:
+    global _profiles_cache
+    if _profiles_cache is not None:
+        return _profiles_cache
+    if PROFILES_FILE.exists():
+        try:
+            _profiles_cache = json.loads(PROFILES_FILE.read_text())
+        except Exception:
+            _profiles_cache = {}
+    else:
+        _profiles_cache = {}
+    return _profiles_cache
+
+
+def _save_profiles_unlocked() -> None:
+    if _profiles_cache is None:
+        return
+    tmp = PROFILES_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(_profiles_cache, ensure_ascii=False, indent=2))
+    tmp.replace(PROFILES_FILE)
+
+
+def _now_iso() -> str:
+    return datetime.datetime.utcnow().isoformat() + "Z"
+
+
+def load_profile(user_id: str) -> dict:
+    return dict(_load_profiles().get(user_id) or {})
+
+
+def upsert_profile(user_id: str, **fields) -> dict:
+    with _profiles_lock:
+        profs = _load_profiles()
+        p = profs.setdefault(user_id, {
+            "user_id": user_id,
+            "first_seen": _now_iso(),
+            "n_messages": 0,
+            "last_summary_at_msg": 0,
+            "interests": [],
+            "dislikes": [],
+        })
+        for k, v in fields.items():
+            if v is not None:
+                p[k] = v
+        p["last_seen"] = _now_iso()
+        _save_profiles_unlocked()
+        return dict(p)
+
+
+def bump_messages(user_id: str, display_name: str | None = None,
+                  locale: str | None = None) -> int:
+    with _profiles_lock:
+        profs = _load_profiles()
+        p = profs.setdefault(user_id, {
+            "user_id": user_id,
+            "first_seen": _now_iso(),
+            "n_messages": 0,
+            "last_summary_at_msg": 0,
+            "interests": [],
+            "dislikes": [],
+        })
+        p["n_messages"] = (p.get("n_messages") or 0) + 1
+        p["last_seen"] = _now_iso()
+        if display_name:
+            p["display_name"] = display_name
+        if locale:
+            # Detect locale shift (e.g. en→mix) — keep newest signal
+            p["locale"] = locale
+        _save_profiles_unlocked()
+        return p["n_messages"]
+
+
+def save_turn(user_id: str, channel_id: str, role: str, content: str) -> None:
+    f = HISTORY_DIR / f"{user_id}.jsonl"
+    rec = {"role": role, "content": content[:4000],
+           "channel_id": channel_id, "at": _now_iso()}
+    with f.open("a") as fh:
+        fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def load_recent_history(user_id: str, n: int = 20) -> list[dict]:
+    f = HISTORY_DIR / f"{user_id}.jsonl"
+    if not f.exists():
+        return []
+    try:
+        lines = f.read_text().splitlines()[-n:]
+    except Exception:
+        return []
+    out: list[dict] = []
+    for ln in lines:
+        try:
+            out.append(json.loads(ln))
+        except Exception:
+            continue
+    return out
+
+
+_THAI_RE = re.compile(r"[฀-๿]")
+_ASCII_WORD_RE = re.compile(r"[a-zA-Z]{3,}")
+
+
+def detect_locale(text: str) -> str:
+    has_thai = bool(_THAI_RE.search(text))
+    has_ascii = bool(_ASCII_WORD_RE.search(text))
+    if has_thai and has_ascii:
+        return "mix"
+    if has_thai:
+        return "th"
+    if has_ascii:
+        return "en"
+    return "th"
+
+
+def build_profile_block(display_name: str, user_id: str, profile: dict) -> str:
+    """Block injected into system prompt so the LLM can adapt per-user."""
+    if not profile:
+        return (
+            "\n\n════ ผู้ที่กำลังคุยด้วย ════\n"
+            f"ชื่อ: {display_name} (user_id: {user_id})\n"
+            "ยังไม่เคยคุยกันมาก่อน — ฟังเสียงเขาก่อน อ่านโทน ปรับตามที่เขาคุยมา\n"
+        )
+    bits = ["\n\n════ ผู้ที่กำลังคุยด้วย ════",
+            f"ชื่อ: {display_name} (user_id: {user_id})",
+            f"คุยกันมาแล้ว {profile.get('n_messages', 0)} ข้อความ"]
+    if profile.get("style"):
+        bits.append(f"สไตล์การพูด: {profile['style']}")
+    if profile.get("locale"):
+        bits.append(f"ภาษา: {profile['locale']}")
+    ints = profile.get("interests") or []
+    if ints:
+        bits.append(f"สนใจ: {', '.join(ints[:5])}")
+    dis = profile.get("dislikes") or []
+    if dis:
+        bits.append(f"ไม่ชอบ: {', '.join(dis[:3])}")
+    if profile.get("summary"):
+        bits.append(f"สรุปคนนี้: {profile['summary']}")
+    bits.append(
+        "→ ใช้ข้อมูลนี้ปรับโทน + เรื่องที่เสิร์ฟให้ตรงกับเขา. "
+        "อ้างอิง history ใน turns ที่ตามมาได้เลย ห้ามทำเป็นเพิ่งเจอกัน. "
+        "ห้ามอ่าน block นี้ออกเสียงให้ user เห็น."
+    )
+    return "\n".join(bits) + "\n"
+
+
+def build_messages(user_id: str, display_name: str, user_text: str) -> list:
+    profile = load_profile(user_id)
+    profile_block = build_profile_block(display_name, user_id, profile)
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT + profile_block}]
+    for h in load_recent_history(user_id, n=HISTORY_TURNS):
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            msgs.append({"role": h["role"], "content": h["content"]})
     msgs.append({"role": "user", "content": user_text[:6000]})
     return msgs
 
 
-def remember(channel_id: int, user_text: str, bot_reply: str) -> None:
-    _history[channel_id].append((user_text[:2000], bot_reply[:2000]))
-    if len(_history[channel_id]) > HISTORY_TURNS:
-        _history[channel_id] = _history[channel_id][-HISTORY_TURNS:]
+def maybe_summarize_profile_sync(user_id: str) -> None:
+    """LLM-roll user_profiles.{summary,interests,dislikes,style,locale}.
+
+    Runs in a thread (fire-and-forget). Idempotent — keyed on n_messages so
+    we never re-summarize the same window twice. Failures are logged and
+    swallowed; profile retains its previous values.
+    """
+    p = load_profile(user_id)
+    if not p:
+        return
+    n = p.get("n_messages", 0)
+    last = p.get("last_summary_at_msg", 0) or 0
+    if n - last < SUMMARY_REFRESH_EVERY:
+        return
+    hist = load_recent_history(user_id, n=30)
+    if len(hist) < 4:
+        return
+    transcript = "\n".join(
+        f"[{h.get('role', '?')}] {(h.get('content', '') or '')[:300]}"
+        for h in hist
+    )
+    sys_p = (
+        "You analyze a Discord chat log to build a user profile. "
+        "Output STRICT JSON only — no markdown, no prose, no comments."
+    )
+    user_p = (
+        "From the transcript below, build a profile of THE USER (not the "
+        "assistant). Output strict JSON with this exact shape:\n"
+        '{"interests":["3-5 short labels","..."],'
+        '"dislikes":["0-2 short labels"],'
+        '"style":"casual|formal|playful|engineer|mixed",'
+        '"locale":"th|en|mix",'
+        '"summary":"2-3 sentences describing who they are and how to talk to '
+        'them, in the same locale they speak."}\n\n'
+        f"=== transcript ===\n{transcript[:4000]}"
+    )
+    try:
+        out = call_llm(
+            [{"role": "system", "content": sys_p},
+             {"role": "user", "content": user_p}],
+            max_tokens=400, timeout=30,
+        )
+        out = out.strip()
+        if "```" in out:
+            seg = out.split("```")[1]
+            if seg.startswith("json"):
+                seg = seg[4:]
+            out = seg.strip()
+        data = json.loads(out)
+        upsert_profile(user_id,
+                       interests=data.get("interests"),
+                       dislikes=data.get("dislikes"),
+                       style=data.get("style"),
+                       locale=data.get("locale"),
+                       summary=data.get("summary"),
+                       last_summary_at_msg=n)
+        log.info(f"profile rolled {user_id}: style={data.get('style')} "
+                 f"interests={(data.get('interests') or [])[:3]}")
+    except Exception as e:
+        log.warning(f"profile summarize failed for {user_id}: "
+                    f"{type(e).__name__}: {str(e)[:120]}")
 
 
 def chunk(text: str) -> list[str]:
@@ -219,21 +445,42 @@ async def on_message(msg: discord.Message):
     prompt = PREFIX_RE.sub("", text).strip()
     if mentioned:
         prompt = re.sub(rf"<@!?{client.user.id}>", "", prompt).strip()
+
+    user_id = str(msg.author.id)
+    display_name = msg.author.display_name or msg.author.name
+    channel_id = str(msg.channel.id)
+
     if not prompt:
-        await msg.reply("ครับ มีอะไรให้ช่วยครับ?")
+        # Empty mention — greet by display_name, no canned "have a question" line
+        await msg.reply(f"ครับ {display_name} ว่าไงครับ?")
         return
 
-    log.info(f"msg from {msg.author} in {msg.channel.id}: {prompt[:120]}")
+    locale = detect_locale(prompt)
+    log.info(f"msg from {display_name} ({user_id}) in {channel_id}: {prompt[:120]}")
+
     async with msg.channel.typing():
         try:
-            messages = build_messages(msg.channel.id, prompt)
+            # Snapshot profile BEFORE bumping so build_messages reflects the
+            # state the user-visible 'this is your Nth message' would describe.
+            messages = build_messages(user_id, display_name, prompt)
             reply = await asyncio.to_thread(call_llm, messages, 1500, 60)
         except Exception as e:
             log.error(f"LLM failed: {e}")
             await msg.reply(f"⚠ LLM chain failed: `{str(e)[:200]}`\nลองอีกครั้งใน 30s ครับ")
             return
 
-    remember(msg.channel.id, prompt, reply)
+    # Persist the turn-pair THEN bump counters so n_messages reflects the
+    # number of user turns recorded.
+    save_turn(user_id, channel_id, "user", prompt)
+    save_turn(user_id, channel_id, "assistant", reply)
+    n = bump_messages(user_id, display_name=display_name, locale=locale)
+
+    # Roll the rolled summary every SUMMARY_REFRESH_EVERY user msgs. Fire and
+    # forget — the next message's build_messages will pick it up if ready.
+    p_now = load_profile(user_id)
+    if n - (p_now.get("last_summary_at_msg", 0) or 0) >= SUMMARY_REFRESH_EVERY:
+        asyncio.create_task(asyncio.to_thread(maybe_summarize_profile_sync, user_id))
+
     for chunk_text in chunk(reply):
         try:
             await msg.reply(chunk_text)
