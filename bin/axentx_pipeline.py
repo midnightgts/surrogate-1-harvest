@@ -267,11 +267,12 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
     except Exception as e:
         last_err = f"Gemini: {e} (after {last_err})"
 
-    # Last resort: own Surrogate-1 v1 LoRA via ZeroGPU Space.
-    # OFF by default (user directive 2026-05-02): "ไม่เอา surrogate-1 มาใช้
-    # เป็น fallback — มันยังไม่เก่ง ควรหา model ที่เก่งกว่าก่อนตลอด".
-    # Set USE_V1_FALLBACK=1 only when v1 quality matches/exceeds the chain.
-    if os.environ.get("USE_V1_FALLBACK", "0") == "1":
+    # Last-resort fallback: own Surrogate-1 v1 LoRA via ZeroGPU Space.
+    # User directive (2026-05-02 clarified): "ให้มันเป็น fallback ของทั้งหมด
+    # เมื่อมันไม่เหลือที่ให้ใช้แล้ว ก็ต้องใช้" — degraded answer beats
+    # no-answer when every other provider is dead. Default ON; opt out
+    # via USE_V1_FALLBACK=0 only for eval runs where we want hard failure.
+    if os.environ.get("USE_V1_FALLBACK", "1") == "1":
         try:
             full = (system + "\n\n" + prompt) if system else prompt
             return _call_surrogate_v1(full, timeout=max(timeout, 60))
