@@ -787,6 +787,15 @@ def pick_oldest(stage: str) -> tuple[Path, dict] | None:
                 payload = {}
         item_id = claimed.get("id") or payload.get("id")
         if item_id and isinstance(payload, dict) and payload:
+            # Make sure callers can use item["id"] safely. The D1 row stores
+            # id outside the payload blob, so the rehydrated payload may not
+            # have it — copy it back in. Same for stage/project/focus when
+            # we have them on the row.
+            payload.setdefault("id", item_id)
+            for k in ("stage", "project", "focus"):
+                v = claimed.get(k)
+                if v and not payload.get(k):
+                    payload[k] = v
             path = QUEUES[stage] / f"{item_id}.json"
             try:
                 path.write_text(json.dumps(payload, indent=2))
