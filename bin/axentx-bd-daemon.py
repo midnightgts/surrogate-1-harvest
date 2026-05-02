@@ -6,10 +6,10 @@ LLM to classify it against the active axentx product portfolio:
 
   Costinel  — AWS cost analytics + anomaly detection
   vanguard  — security / compliance posture
-  airship   — IaC / cloud platform deployment
+  airship   — IaC / cloud platform deployment + DevSecOps tooling
   workio    — workflow automation
-  axiomops  — DevSecOps tooling
   surrogate — Surrogate-1 (this entire stack — autonomous AI dev agent)
+  (axiomops removed 2026-05-02 — its scope rolled into airship; never target axiomops)
 
 Verdict: either
   EXTEND <project>  → pain is best solved as a feature on an existing
@@ -35,8 +35,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from axentx_pipeline import (REPO_ROOT, log, call_llm, pick_oldest, advance,
-                             fail, daemon_loop, get_role_budget)
+from axentx_pipeline import (REPO_ROOT, log, call_llm, call_llm_strong,
+                             pick_oldest, advance, fail, daemon_loop,
+                             get_role_budget)
 
 POLL_SEC = int(os.environ.get("BD_POLL_SEC", "60"))
 BD_BUDGET = get_role_budget("bd", 500)
@@ -50,16 +51,16 @@ PORTFOLIO = """Active axentx product portfolio (decide if pain fits one):
 2. vanguard  — Cloud security posture management (CSPM). Compliance officers,
                solo devs who need SOC2-lite. Solves: misconfigured S3/IAM,
                drift detection, audit evidence.
-3. airship   — IaC / multi-cloud deployment platform. Devs shipping to AWS+GCP+
-               Cloudflare without knowing 3 stacks. Solves: deploy-once-target-
-               many, env parity.
+3. airship   — IaC / multi-cloud deployment + DevSecOps integrated tooling.
+               Devs shipping to AWS+GCP+Cloudflare without knowing 3 stacks +
+               senior platform engineers wanting CI/CD + obs + on-call unified.
+               Solves: deploy-once-target-many, env parity, replaces 6 vendors.
 4. workio    — Workflow automation (think Zapier for engineering teams).
                Solves: glue between GitHub/Slack/Jira/HF without writing scripts.
-5. axiomops  — DevSecOps integrated tooling. Senior platform engineers.
-               Solves: CI/CD + obs + on-call in one stack instead of 6 vendors.
-6. surrogate — Surrogate-1: autonomous AI dev agent (this stack). Devs who
+5. surrogate — Surrogate-1: autonomous AI dev agent (this stack). Devs who
                want commits/reviews/tests/docs done while they sleep, on
-               cloud free tier."""
+               cloud free tier.
+(axiomops removed — merged into airship 2026-05-02)"""
 
 ANTI_PATTERNS = """ANTI-PATTERNS — IMMEDIATELY return verdict=PASS for ideas
 that match any of these (they are graveyards):
@@ -82,7 +83,7 @@ BD_SYSTEM = (
     "Output STRICT JSON:\n\n"
     "{\n"
     '  "verdict": "EXTEND|NEW-PRODUCT|PASS",\n'
-    '  "target_project": "Costinel|vanguard|airship|workio|axiomops|surrogate|null",\n'
+    '  "target_project": "Costinel|vanguard|airship|workio|surrogate|null",\n'
     '  "rationale": "1-2 sentences why this fit or why pass",\n'
     '  "feature_one_liner": "if EXTEND: the feature in one sentence",\n'
     '  "new_product_one_liner": "if NEW-PRODUCT: the product hypothesis in one sentence",\n'
@@ -117,7 +118,15 @@ def do_one_bd() -> bool:
         f"Your verdict (strict JSON only):"
     )
     try:
-        out = call_llm(prompt, system=BD_SYSTEM, max_tokens=BD_BUDGET, timeout=35)
+        # Decision gate — force top-tier reasoning model. If every strong
+        # provider rate-limits (rare), degrade to the standard chain rather
+        # than queue-stalling.
+        try:
+            out = call_llm_strong(prompt, system=BD_SYSTEM,
+                                  max_tokens=BD_BUDGET, timeout=45)
+        except Exception:
+            out = call_llm(prompt, system=BD_SYSTEM,
+                           max_tokens=BD_BUDGET, timeout=35)
         txt = out.strip()
         if "```" in txt:
             txt = txt.split("```")[1]

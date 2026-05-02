@@ -139,7 +139,7 @@ function renderDashboard(stats, datasets, spaces, audit, recentTraces) {
 </style></head><body>
 <h1>surrogate-1 dashboard</h1>
 <div class="muted">live state · ${escape(new Date().toISOString())}</div>
-<div class="muted">links: <a href="/status">public status</a> · <a href="/metrics">prom metrics</a> · <a href="/audit">audit (auth)</a></div>
+<div class="muted">links: <a href="/dash/agents">agent status</a> · <a href="/status">public status</a> · <a href="/metrics">prom metrics</a> · <a href="/audit">audit (auth)</a></div>
 
 <h2>HF Spaces (last cron probe)</h2>
 <table><tr><th>Space</th><th>Status</th><th class="r">Latency</th><th class="r">Last seen</th></tr>
@@ -402,6 +402,62 @@ export default {
           renderDashboard(stats, datasets, spaces, a.results || [], traces.results || []),
           { headers: { "Content-Type": "text/html; charset=utf-8", ...CORS, "X-Trace-Id": traceId } }
         );
+      }
+
+      // /dash/agents — live status grid of every reporting daemon (KV-backed)
+      // (User directive 2026-05-02: "ดู agent ทั้งหมด แล้วดูว่าใครต้องทำงาน
+      //  เมื่อไหร่ตอนไหน")
+      if (path === "/dash/agents" && request.method === "GET") {
+        const list = await env.HEARTBEAT.list({ prefix: "agent:", limit: 200 });
+        const agents = [];
+        for (const k of (list.keys || [])) {
+          try {
+            const v = await env.HEARTBEAT.get(k.name, { type: "json" });
+            if (v) agents.push(v);
+          } catch (_) {}
+        }
+        agents.sort((a, b) => (a.agent || "").localeCompare(b.agent || ""));
+        const now = Math.floor(Date.now() / 1000);
+        const rows = agents.map(a => {
+          const lastSeenMs = a.last_seen ? Date.parse(a.last_seen) : 0;
+          const ageSec = lastSeenMs ? Math.floor((Date.now() - lastSeenMs) / 1000) : 9999;
+          const stale = ageSec > 120;
+          const stateColor = a.state === "error" ? "#c33"
+            : stale ? "#888"
+            : a.state === "working" ? "#3a3"
+            : "#26a";
+          return `<tr>
+            <td><b>${escape(a.agent || "?")}</b></td>
+            <td><span style="color:${stateColor}">●</span> ${escape(a.state || "?")}</td>
+            <td><code>${escape(a.task || "")}</code></td>
+            <td>${a.cycle_n || 0}</td>
+            <td>${ageSec}s ago</td>
+            <td>${escape(a.host || "?")}/<code>${a.pid || "?"}</code></td>
+            <td style="color:#c33;font-size:12px">${escape((a.last_error || "").slice(0, 80))}</td>
+          </tr>`;
+        }).join("");
+        const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>surrogate-1 — agent status</title>
+<meta http-equiv="refresh" content="15">
+<style>
+  body{font:13px ui-monospace,monospace;background:#0a0e1a;color:#cfe;margin:24px}
+  h1{color:#7fffd4;font-weight:600;margin:0 0 16px}
+  table{border-collapse:collapse;width:100%}
+  th,td{padding:6px 10px;border-bottom:1px solid #1a1f2e;text-align:left}
+  th{color:#7fffd4;font-weight:600;font-size:11px;text-transform:uppercase}
+  .muted{color:#677}
+  a{color:#0ef}
+</style></head><body>
+<h1>🟢 agent status — ${agents.length} reporting</h1>
+<p class="muted">auto-refresh 15s · stale = no heartbeat &gt; 120s · <a href="/dash">← back</a></p>
+<table>
+<thead><tr><th>agent</th><th>state</th><th>task</th><th>cycle</th><th>seen</th><th>host/pid</th><th>last_error</th></tr></thead>
+<tbody>${rows || '<tr><td colspan="7" class="muted">no agents reporting yet — waiting for first heartbeat</td></tr>'}</tbody>
+</table>
+</body></html>`;
+        return new Response(html, {
+          headers: { "Content-Type": "text/html; charset=utf-8", ...CORS },
+        });
       }
 
       // #42 — /dash/trace/<trace_id> Gantt view

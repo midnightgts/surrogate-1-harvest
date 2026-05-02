@@ -14,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, log, call_llm, daemon_loop)
 POLL_SEC = int(os.environ.get("RELEASE_POLL_SEC", "86400"))  # 24h
 PROJECTS_ROOT = Path(os.environ.get("AXENTX_ROOT", "/opt/axentx"))
-PROJECTS = ["Costinel","vanguard","airship","axiomops","workio","surrogate-1"]
+PROJECTS = ["Costinel", "vanguard", "airship", "workio", "surrogate-1"]
+# axiomops dropped 2026-05-02 — merged into airship
 
 REL_SYSTEM = """Given a list of commit subjects since the last tag, decide
 semver bump (major|minor|patch) and write release notes (markdown).

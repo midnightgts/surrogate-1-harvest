@@ -12,6 +12,10 @@ database_id = "ae95ac58-7b7e-40d9-8708-518c23281ae6"
 binding = "CACHE"
 id = "3e334007e0cd472493616f8c67337270"
 
+[[kv_namespaces]]
+binding = "HEARTBEAT"
+id = "8fb8df05ac434f8188a19f5f6dbafd8e"
+
 [ai]
 binding = "AI"
 

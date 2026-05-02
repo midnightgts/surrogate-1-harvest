@@ -26,7 +26,8 @@ DEV_BUDGET = get_role_budget("dev", 2000)
 DEV_REFINE_BUDGET = get_role_budget("dev_refine", 2500)
 
 PROJECTS_ROOT = Path(os.environ.get("AXENTX_ROOT", "/opt/axentx"))
-ROTATION = ["Costinel", "vanguard", "airship", "axiomops", "workio", "surrogate-1"]
+ROTATION = ["Costinel", "vanguard", "airship", "workio", "surrogate-1"]
+# axiomops removed 2026-05-02 — rebranded into airship (target shifted)
 FOCUS_CYCLE = ["discovery", "design", "backend", "frontend", "quality", "ops"]
 
 

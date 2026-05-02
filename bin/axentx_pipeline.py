@@ -278,6 +278,69 @@ def call_llm(prompt: str, system: str = "", max_tokens: int = 1500,
     raise RuntimeError(f"all LLM providers failed; last={last_err}")
 
 
+# Top-tier reasoning models — used for DECISION GATES (BD verdicts, release
+# approval, architecture). Per user directive 2026-05-02: "ให้ agent model
+# ที่ resioning ดีๆ ตัวใหญ่กว่า เป็นคนตัดสินใจ ไม่ต้องมี human in the loop"
+# We force-route through the strongest available providers ONLY — no fast-path
+# fallback to 8B models, no surrogate-1 v1 — so decisions reflect real reasoning.
+_STRONG_CHAIN = [
+    # Provider, URL, env-key, model — ordered by quality / context length
+    ("Chutes-DeepSeek-V3",     "https://llm.chutes.ai/v1/chat/completions",
+     "CHUTES_API_KEY",         "deepseek-ai/DeepSeek-V3"),
+    ("SambaNova-Llama3.3-70B", "https://api.sambanova.ai/v1/chat/completions",
+     "SAMBANOVA_API_KEY",      "Meta-Llama-3.3-70B-Instruct"),
+    ("Groq-Llama3.3-70B",      "https://api.groq.com/openai/v1/chat/completions",
+     "GROQ_API_KEY",           "llama-3.3-70b-versatile"),
+    ("NVIDIA-Llama3.3-70B",    "https://integrate.api.nvidia.com/v1/chat/completions",
+     "NVIDIA_NIM_API_KEY",     "meta/llama-3.3-70b-instruct"),
+    ("OpenRouter-Llama3.3-70B","https://openrouter.ai/api/v1/chat/completions",
+     "OPENROUTER_API_KEY",     "meta-llama/llama-3.3-70b-instruct:free"),
+    ("xAI-Grok-2",             "https://api.x.ai/v1/chat/completions",
+     "GROK_API_KEY",           "grok-2-1212"),
+]
+
+
+def call_llm_strong(prompt: str, system: str = "", max_tokens: int = 2000,
+                    timeout: int = 60) -> str:
+    """Decision-grade LLM call — top-tier reasoning models only.
+
+    Use this for BD verdicts, release approvals, root-cause analysis,
+    architecture decisions. Skips Workers AI fast-path + small models +
+    surrogate-1 v1 fallback. Falls through the chain on rate-limit, raises
+    if EVERY strong provider failed (caller can degrade to call_llm).
+    """
+    messages: list[dict] = []
+    if system:
+        messages.append({"role": "system", "content": system[:8000]})
+    messages.append({"role": "user", "content": prompt[:16000]})
+    last_err: str | None = None
+    for name, url, env_key, model in _STRONG_CHAIN:
+        # Some keys have alternates — handle the common aliases gracefully
+        key = (os.environ.get(env_key)
+               or (os.environ.get("XAI_API_KEY") if env_key == "GROK_API_KEY" else None)
+               or (os.environ.get("NVIDIA_API_KEY") if env_key == "NVIDIA_NIM_API_KEY" else None))
+        if not key:
+            continue
+        body = {"model": model, "messages": messages,
+                "max_tokens": max_tokens, "temperature": 0.2}
+        req = urllib.request.Request(
+            url, data=json.dumps(body).encode(),
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "User-Agent": UA_BROWSER,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                d = json.loads(r.read())
+                return d["choices"][0]["message"]["content"]
+        except Exception as e:
+            last_err = f"{name}: {e}"
+            continue
+    raise RuntimeError(f"call_llm_strong: all strong providers failed; last={last_err}")
+
+
 def synthesize(prompt: str, system: str = "", n_attempts: int = 3,
                max_tokens: int = 1500, timeout: int = 30) -> str:
     """Generate N candidates, then call once more to synthesize the best.
@@ -505,12 +568,35 @@ HIBERNATE_MULT = int(os.environ.get("HIBERNATE_MULT", "5"))
 
 def daemon_loop(role: str, poll_sec: int, work_fn) -> None:
     """Generic daemon main — never returns. Polls input queue, runs work_fn.
-    OOM-hardened: explicit gc + RSS check + bail-out before kill."""
+    OOM-hardened: explicit gc + RSS check + bail-out before kill.
+    Heartbeats automatically: every cycle posts {state,task,cycle_n} to CF KV
+    so /dash/agents shows live status across the fleet."""
     import gc
     import resource
     import signal
+
+    # Heartbeat — best-effort, never breaks the daemon. Imported lazily so a
+    # bot without CF creds still runs (heartbeat just no-ops).
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "agent_heartbeat",
+            str(Path(__file__).parent / "agent-heartbeat.py"),
+        )
+        _hb = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_hb)
+        _hb.start_heartbeat(role, initial_state="starting")
+    except Exception:
+        _hb = None  # heartbeat unavailable — keep going
+
     def shutdown(*_):
         log(role, "shutdown signal")
+        if _hb is not None:
+            try:
+                _hb.stop_heartbeat()
+            except Exception:
+                pass
         sys.exit(0)
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
@@ -524,13 +610,28 @@ def daemon_loop(role: str, poll_sec: int, work_fn) -> None:
               f"{f', SLO {slo_sec}s' if slo_sec else ''}")
     n_processed = 0
     n_idle = 0
+    cycle_n = 0
     while True:
+        cycle_n += 1
+        if _hb is not None:
+            try:
+                _hb.heartbeat(role, state="working", task=f"cycle#{cycle_n}",
+                              cycle_n=cycle_n)
+            except Exception:
+                pass
         t0 = time.monotonic()
         try:
             did_work = work_fn()
         except Exception as e:
             log(role, f"⚠ exception: {type(e).__name__}: {e}")
             did_work = False
+            if _hb is not None:
+                try:
+                    _hb.heartbeat(role, state="error",
+                                  task=f"cycle#{cycle_n}",
+                                  error=f"{type(e).__name__}: {str(e)[:100]}")
+                except Exception:
+                    pass
         elapsed = time.monotonic() - t0
 
         # SLO breach warning — only when work happened (idle cycle is fast/short)
@@ -552,11 +653,25 @@ def daemon_loop(role: str, poll_sec: int, work_fn) -> None:
         if did_work:
             n_processed += 1
             n_idle = 0
+            if _hb is not None:
+                try:
+                    _hb.heartbeat(role, state="idle",
+                                  task=f"done cycle#{cycle_n}",
+                                  cycle_n=cycle_n)
+                except Exception:
+                    pass
             time.sleep(2)
         else:
             n_idle += 1
             if n_idle % 20 == 1:
                 log(role, f"idle (processed={n_processed} cycles, RSS={rss_kb} KB)")
+            if _hb is not None:
+                try:
+                    _hb.heartbeat(role, state="idle",
+                                  task=f"idle×{n_idle}",
+                                  cycle_n=cycle_n)
+                except Exception:
+                    pass
             # Hibernate when persistently idle — saves CPU on a quiet pipeline.
             sleep_sec = poll_sec * HIBERNATE_MULT if n_idle >= HIBERNATE_AFTER else poll_sec
             time.sleep(sleep_sec)

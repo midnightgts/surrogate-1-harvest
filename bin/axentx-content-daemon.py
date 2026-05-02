@@ -14,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from axentx_pipeline import (REPO_ROOT, log, call_llm, daemon_loop, new_item, write_item)
 POLL_SEC = int(os.environ.get("CONTENT_POLL_SEC", "14400"))  # 4h
 PROJECTS_ROOT = Path(os.environ.get("AXENTX_ROOT", "/opt/axentx"))
-PROJECTS = ["Costinel","vanguard","airship","axiomops","workio","surrogate-1"]
+PROJECTS = ["Costinel", "vanguard", "airship", "workio", "surrogate-1"]
+# axiomops dropped 2026-05-02 — merged into airship
 
 CONTENT_SYSTEM = """You are a developer-marketing writer. Given a list of
 recent commits in a project, produce:

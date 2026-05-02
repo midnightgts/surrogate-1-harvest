@@ -9,10 +9,10 @@ from axentx_pipeline import REPO_ROOT, log, call_llm
 PROJECTS = {
     "Costinel":  "AWS cost analytics + anomaly detection",
     "vanguard":  "Cloud security posture management (CSPM)",
-    "airship":   "IaC / multi-cloud deployment",
+    "airship":   "IaC / multi-cloud deployment + DevSecOps integrated tooling",
     "workio":    "Workflow automation (engineering teams)",
-    "axiomops":  "DevSecOps integrated tooling",
     "surrogate-1": "Autonomous AI dev agent",
+    # axiomops dropped 2026-05-02 — merged into airship (target shifted)
 }
 OUT_DIR = REPO_ROOT / "docs" / "competitive"
 OUT_DIR.mkdir(parents=True, exist_ok=True)

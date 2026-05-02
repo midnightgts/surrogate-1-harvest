@@ -55,7 +55,7 @@ GH_TOKEN = os.environ.get("AXENTX_BOT_GITHUB_TOKEN") or os.environ.get("GITHUB_T
 GH_ORG = os.environ.get("AXENTX_GH_ORG", "axentx")
 GH_REPOS = os.environ.get(
     "AXENTX_GH_REPOS",
-    "Costinel,vanguard,airship,workio,axiomops,surrogate-1",
+    "Costinel,vanguard,airship,workio,surrogate-1",
 ).split(",")
 
 RENDER_API_KEY = os.environ.get("RENDER_API_KEY", "")

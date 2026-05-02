@@ -22,9 +22,11 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -224,14 +226,217 @@ def fetch_devto() -> list[dict]:
     return posts
 
 
+# ─── Reddit OAuth (script-app) — bypasses anti-scrape on shared GCP NAT ──
+# Why: Reddit blocks datacenter IPs for unauthenticated JSON. The official
+# script-app OAuth flow is free, gives us 600 reqs/10min/app, and works from
+# anywhere. Per user directive (2026-05-02): "หา proxy agent หรือ solution
+# bypass" — OAuth IS the solution; no proxy needed when you're authenticated.
+# Set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in /etc/surrogate-coordinator.env
+# (created at https://www.reddit.com/prefs/apps → "create app" → "script").
+# REDDIT_USERNAME optional but recommended for the User-Agent header.
+_reddit_token: dict[str, float | str] = {"token": "", "expires_at": 0.0}
+
+
+def _reddit_oauth_token() -> str:
+    """Return a cached bearer token; refresh ~10s before expiry."""
+    cid = os.environ.get("REDDIT_CLIENT_ID", "")
+    csec = os.environ.get("REDDIT_CLIENT_SECRET", "")
+    if not (cid and csec):
+        return ""
+    if _reddit_token["token"] and time.time() < float(_reddit_token["expires_at"]):
+        return str(_reddit_token["token"])
+    import base64
+    auth = base64.b64encode(f"{cid}:{csec}".encode()).decode()
+    body = b"grant_type=client_credentials"
+    req = urllib.request.Request(
+        "https://www.reddit.com/api/v1/access_token",
+        data=body, method="POST",
+        headers={
+            "Authorization": f"Basic {auth}",
+            "User-Agent": f"axentx-research/0.2 (by /u/{os.environ.get('REDDIT_USERNAME','axentx')})",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.loads(r.read())
+        _reddit_token["token"] = d.get("access_token", "")
+        _reddit_token["expires_at"] = time.time() + int(d.get("expires_in", 3600)) - 30
+        return str(_reddit_token["token"])
+    except Exception:
+        return ""
+
+
+def fetch_reddit_oauth(sub: str) -> list[dict]:
+    """OAuth-authenticated Reddit fetch. Returns [] if no creds → caller
+    falls through to legacy old.reddit JSON path."""
+    tok = _reddit_oauth_token()
+    if not tok:
+        return []
+    posts: list[dict] = []
+    url = f"https://oauth.reddit.com/r/{sub}/hot?limit=15&t=day"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {tok}",
+        "User-Agent": f"axentx-research/0.2 (by /u/{os.environ.get('REDDIT_USERNAME','axentx')})",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read())
+    except Exception:
+        return []
+    for c in (d.get("data") or {}).get("children", [])[:15]:
+        p = c.get("data") or {}
+        if p.get("stickied") or (p.get("score", 0) < 5):
+            continue
+        body = (p.get("selftext") or "").strip()
+        if len(body) < 80:
+            continue
+        posts.append({
+            "source": f"reddit/r/{sub}",
+            "url": "https://reddit.com" + p.get("permalink", ""),
+            "title": p.get("title", "")[:300],
+            "body": body[:3000],
+            "score": p.get("score", 0),
+            "num_comments": p.get("num_comments", 0),
+        })
+    return posts
+
+
+def fetch_reddit_smart(sub: str) -> list[dict]:
+    """OAuth first; fall back to anonymous old.reddit on creds-missing."""
+    posts = fetch_reddit_oauth(sub)
+    if posts:
+        return posts
+    return fetch_reddit(sub)
+
+
+# ─── StackExchange (Stack Overflow + adjacent sites) ──────────────────────
+# Free API, 300 reqs/day no auth — perfect for daily harvest of "things devs
+# are stuck on". `tagged` filter gives us topical bands (devops/aws/etc.).
+def fetch_stackexchange(site_tag: str) -> list[dict]:
+    """site_tag = '<site>:<tag>' e.g. 'stackoverflow:devops' / 'serverfault:aws'."""
+    site, tag = site_tag.split(":", 1)
+    url = (f"https://api.stackexchange.com/2.3/questions"
+           f"?order=desc&sort=creation&site={site}&tagged={tag}"
+           f"&pagesize=15&filter=!9_bDDxJY5")  # filter includes body
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            import gzip
+            raw = r.read()
+            if r.headers.get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+            d = json.loads(raw)
+    except Exception:
+        return []
+    posts: list[dict] = []
+    for q in (d.get("items") or [])[:15]:
+        body_html = q.get("body") or ""
+        # strip HTML tags crudely (keeping text content)
+        body = re.sub(r"<[^>]+>", " ", body_html)
+        body = re.sub(r"\s+", " ", body).strip()
+        if len(body) < 80:
+            continue
+        posts.append({
+            "source": f"stackexchange/{site}/{tag}",
+            "url": q.get("link", ""),
+            "title": q.get("title", "")[:300],
+            "body": body[:3000],
+            "score": q.get("score", 0),
+            "num_comments": q.get("answer_count", 0),
+        })
+    return posts
+
+
+# ─── ProductHunt — RSS feed of daily launches ─────────────────────────────
+def fetch_producthunt() -> list[dict]:
+    """RSS doesn't include vote count, but tag/text alone is enough signal
+    to spot recurring pain themes (categories that dominate launches today
+    = where market is hottest)."""
+    import xml.etree.ElementTree as ET
+    try:
+        req = urllib.request.Request(
+            "https://www.producthunt.com/feed", headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            xml = r.read()
+        root = ET.fromstring(xml)
+    except Exception:
+        return []
+    posts: list[dict] = []
+    for item in root.findall(".//item")[:15]:
+        title = (item.findtext("title") or "")[:300]
+        link = item.findtext("link") or ""
+        body = (item.findtext("description") or "").strip()
+        if len(body) < 80:
+            continue
+        # Strip HTML
+        body = re.sub(r"<[^>]+>", " ", body)
+        body = re.sub(r"\s+", " ", body).strip()
+        posts.append({
+            "source": "producthunt",
+            "url": link, "title": title,
+            "body": body[:3000], "score": 0, "num_comments": 0,
+        })
+    return posts
+
+
+# ─── GitHub Issues — search popular bug reports / feature requests ────────
+def fetch_github_issues(query: str) -> list[dict]:
+    """Issues with > N reactions surface real recurring pain across thousands
+    of repos. Free 30/min unauthenticated (60/min if GH_TOKEN set)."""
+    tok = os.environ.get("AXENTX_BOT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
+    headers = {"User-Agent": UA, "Accept": "application/vnd.github+json"}
+    if tok:
+        headers["Authorization"] = f"Bearer {tok}"
+    url = (f"https://api.github.com/search/issues"
+           f"?q={urllib.parse.quote(query)}"
+           f"&sort=reactions&order=desc&per_page=10")
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read())
+    except Exception:
+        return []
+    posts: list[dict] = []
+    for it in (d.get("items") or [])[:10]:
+        body = (it.get("body") or "").strip()
+        if len(body) < 80:
+            continue
+        title = (it.get("title") or "")[:300]
+        posts.append({
+            "source": "github-issues",
+            "url": it.get("html_url", ""),
+            "title": title,
+            "body": body[:3000],
+            "score": (it.get("reactions") or {}).get("total_count", 0),
+            "num_comments": it.get("comments", 0),
+        })
+    return posts
+
+
+# StackExchange topical bands — each gives ~15 questions per cycle.
+SE_TARGETS = [
+    "stackoverflow:devops", "stackoverflow:aws", "stackoverflow:terraform",
+    "stackoverflow:kubernetes", "stackoverflow:llm", "stackoverflow:rag",
+    "serverfault:aws", "softwareengineering:architecture",
+]
+# GitHub issues queries — frame as "explicit pain"
+GH_QUERIES = [
+    "is:issue is:open label:bug reactions:>100 created:>2026-04-01",
+    'is:issue is:open in:body "this is impossible" reactions:>5',
+    'is:issue is:open in:body "I wish" label:enhancement reactions:>20',
+    "is:issue is:open in:title \"can't\" reactions:>50",
+]
+
 # Non-Reddit sources FIRST so workers produce signal even when Reddit's
-# anti-scrape blocks our datacenter IPs (which it does, hard, on www and
-# old.reddit alike). Reddit serves as a long tail — we still try it but
-# the pipeline doesn't depend on it.
+# anti-scrape blocks our IPs (OAuth fixes most of this but kept resilient).
 SOURCES = (
     [("hn", fetch_hn), ("devto", fetch_devto),
-     ("lobsters", fetch_lobsters), ("indiehackers", fetch_indiehackers)]
-    + [(f"reddit:{s}", lambda s=s: fetch_reddit(s)) for s in SUBREDDITS]
+     ("lobsters", fetch_lobsters), ("indiehackers", fetch_indiehackers),
+     ("producthunt", fetch_producthunt)]
+    + [(f"se:{tag}", lambda t=tag: fetch_stackexchange(t)) for tag in SE_TARGETS]
+    + [(f"gh:{q[:30]}", lambda q=q: fetch_github_issues(q)) for q in GH_QUERIES]
+    + [(f"reddit:{s}", lambda s=s: fetch_reddit_smart(s)) for s in SUBREDDITS]
 )
 
 
