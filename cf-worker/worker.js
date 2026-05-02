@@ -45,7 +45,9 @@ const SPACES = [
 ];
 
 const RATE_LIMIT_PER_MIN = 100;
-const RATE_LIMIT_EXEMPT_PATHS = new Set(["/health", "/", "/status", "/metrics"]);
+// /agent/heartbeat exempt — 30 daemons × 60s heartbeat = 30 req/min from
+// the same shared NAT IP would otherwise eat the per-IP 100/60s budget.
+const RATE_LIMIT_EXEMPT_PATHS = new Set(["/health", "/", "/status", "/metrics", "/agent/heartbeat"]);
 
 const json = (obj, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(obj), {
