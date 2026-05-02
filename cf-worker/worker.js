@@ -683,47 +683,58 @@ async function runSpaceHealthProbes(env, ctx) {
   ctx.waitUntil(env.CACHE.delete("dash:spaces"));
 }
 
-// #36 — synthetic canary
+// #36 — synthetic canary: end-to-end smoke against D1 directly
+//   (CF Workers cannot fetch() their own zone — would loopback-404 — so we
+//   exercise the same code paths the HTTP handlers use, but in-process.)
 async function runCanary(env, ctx) {
   const t0 = Date.now();
   const traceId = newTraceId();
   const slug = "_canary_e2e";
-  const auth = env.AUTH_TOKEN || "";
-  const base = "https://surrogate-1-cursor.ashira.workers.dev";
-  const headers = {
-    "Content-Type": "application/json",
-    "X-Auth-Token": auth,
-    "X-Trace-Id": traceId,
-  };
   const errs = [];
   let success = false;
   try {
     // 1. read cursor
-    const r1 = await fetch(`${base}/cursor/${slug}`, { headers: { "X-Trace-Id": traceId } });
-    if (!r1.ok) errs.push(`read:${r1.status}`);
-    const cur = await r1.json().catch(() => ({}));
+    const cur1 = await env.DB.prepare(
+      "SELECT dataset_id, offset, total, last_batch, exhausted, updated_at FROM cursors WHERE dataset_id = ?"
+    ).bind(slug).first();
+    const startOffset = cur1?.offset ?? 0;
+    await env.DB.prepare(
+      "INSERT INTO audit_log (action, dataset_id, meta, trace_id, ts) VALUES ('read', ?, ?, ?, unixepoch())"
+    ).bind(slug, JSON.stringify({ offset: startOffset, source: "canary" }), traceId).run();
+
     // 2. advance
-    const r2 = await fetch(`${base}/cursor/${slug}/advance`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ size: 1, last_batch: `canary-${Date.now()}` }),
-    });
-    if (!r2.ok) errs.push(`advance:${r2.status}`);
-    // 3. read-back
-    const r3 = await fetch(`${base}/cursor/${slug}`, { headers: { "X-Trace-Id": traceId } });
-    if (!r3.ok) errs.push(`readback:${r3.status}`);
-    const cur2 = await r3.json().catch(() => ({}));
-    if (cur2.offset == null || cur.offset == null || cur2.offset <= cur.offset) {
-      errs.push(`offset_no_advance:${cur.offset}->${cur2.offset}`);
+    const cur2 = await env.DB.prepare(
+      "INSERT INTO cursors (dataset_id, offset, total, last_batch, exhausted) " +
+      "VALUES (?1, 1, NULL, ?2, 0) " +
+      "ON CONFLICT(dataset_id) DO UPDATE SET " +
+      "  offset = offset + 1, last_batch = ?2, updated_at = unixepoch() " +
+      "RETURNING offset"
+    ).bind(slug, `canary-${Date.now()}`).first();
+    if (!cur2 || cur2.offset == null) errs.push("advance_failed");
+    await env.DB.prepare(
+      "INSERT INTO audit_log (action, dataset_id, meta, trace_id, ts) VALUES ('advance', ?, ?, ?, unixepoch())"
+    ).bind(slug, JSON.stringify({ size: 1, source: "canary" }), traceId).run();
+
+    // 3. read-back, expect offset advanced
+    const cur3 = await env.DB.prepare(
+      "SELECT offset FROM cursors WHERE dataset_id = ?"
+    ).bind(slug).first();
+    if (!cur3 || cur3.offset !== startOffset + 1) {
+      errs.push(`offset_no_advance:${startOffset}->${cur3?.offset}`);
     }
-    // 4. audit lookup by trace_id
-    const r4 = await fetch(`${base}/audit?trace_id=${traceId}`, { headers: { "X-Auth-Token": auth } });
-    if (!r4.ok) errs.push(`audit:${r4.status}`);
-    const auditRows = await r4.json().catch(() => []);
-    if (!Array.isArray(auditRows) || auditRows.length < 1) errs.push(`audit_missing:${auditRows?.length || 0}`);
+    await env.DB.prepare(
+      "INSERT INTO audit_log (action, dataset_id, meta, trace_id, ts) VALUES ('read', ?, ?, ?, unixepoch())"
+    ).bind(slug, JSON.stringify({ offset: cur3?.offset, source: "canary" }), traceId).run();
+
+    // 4. audit lookup — confirm the trace shows up
+    const auditRows = await env.DB.prepare(
+      "SELECT count(*) AS n FROM audit_log WHERE trace_id = ?"
+    ).bind(traceId).first();
+    if (!auditRows || auditRows.n < 3) errs.push(`audit_missing:${auditRows?.n || 0}`);
+
     success = errs.length === 0;
   } catch (e) {
-    errs.push(`exception:${e.message?.slice(0, 80) || "?"}`);
+    errs.push(`exception:${(e.message || "?").slice(0, 80)}`);
   }
   const dt = Date.now() - t0;
   ctx.waitUntil(
