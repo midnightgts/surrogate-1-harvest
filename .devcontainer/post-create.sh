@@ -27,6 +27,8 @@ npm install -g wrangler@4 @commitlint/cli@19 @commitlint/config-conventional@19 
 
 log "3/4 install ollama"
 if ! command -v ollama >/dev/null 2>&1; then
+    # ollama installer (≥0.5.x) ships its tarball as .tar.zst — needs zstd
+    sudo apt-get update -qq && sudo apt-get install -y -qq zstd
     curl -fsSL https://ollama.com/install.sh | sh
 fi
 
